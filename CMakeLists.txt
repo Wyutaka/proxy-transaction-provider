@@ -8,7 +8,7 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable(tcpproxy_server tcpproxy_server.cpp)
+add_executable(tcpproxy_server tcpproxy_server.cpp acceptor.cpp bridge.cpp)
 target_link_libraries(tcpproxy_server Boost::boost)
 target_link_libraries(tcpproxy_server stdc++ pthread)
 
