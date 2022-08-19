@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(my-proxy)
 
+set(CMAKE_C_COMPILER "gcc")
+set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-O3 -pedantic -ansi -Wno-error")
+set(CMAKE_CXX_FLAGS "-O3 -pedantic -ansi -Wno-error -lboost_thread")
 find_package(Boost REQUIRED)
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}

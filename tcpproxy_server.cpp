@@ -49,9 +49,7 @@ int main(int argc, char* argv[])
 
     boost::thread_group threads;
     for (int i = 0; i < num_threads; i++)
-        threads.create_thread(boost::bind(run_proxy, local_port, forward_port, local_host, forward_host));
-
-
+        threads.create_thread([local_port, forward_port, local_host, forward_host] { return run_proxy(local_port, forward_port, local_host, forward_host); });
     threads.join_all();
 
    return 0;
