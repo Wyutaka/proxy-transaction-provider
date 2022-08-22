@@ -8,6 +8,7 @@
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
 #include "server.h++"
+#include <iostream>
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -102,6 +103,11 @@ namespace tcp_proxy {
     {
         if (!error)
         {
+            for (int i = 0; i < max_data_length; ++i) {
+                std::cout << downstream_data_[i];
+            }
+
+            std::cout << std::endl;
             async_write(upstream_socket_,
                         boost::asio::buffer(downstream_data_,bytes_transferred),
                         boost::bind(&bridge::handle_upstream_write,
