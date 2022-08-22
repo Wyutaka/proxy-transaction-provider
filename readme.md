@@ -1,3 +1,8 @@
+#### quick start
+```
+./tcpproxy_server 127.0.0.1 5000 127.0.0.1 9042
+```
+
 #### Description
 The C++ TCP Proxy server is a simple utility using the ASIO networking library,
 for proxying (tunneling or redirecting) connections from external clients to a
@@ -21,7 +26,7 @@ The C++ TCP Proxy server implementation is compatible with the following C++
 compilers:
 
 * GNU Compiler Collection (4.1+)
-* Intel® C++ Compiler (9.x+)
+* Intelï¿½ C++ Compiler (9.x+)
 * Clang/LLVM (1.1+)
 * PGI C++ (10.x+)
 * Microsoft Visual Studio C++ Compiler (8.1+)

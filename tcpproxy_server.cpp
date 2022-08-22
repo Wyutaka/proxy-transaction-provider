@@ -42,14 +42,16 @@ int main(int argc, char* argv[])
    }
 
    const int num_threads = 4;
-   const auto local_port   = static_cast<unsigned short>(::atoi(argv[2]));
+   auto local_port   = static_cast<unsigned short>(::atoi(argv[2]));
    const auto forward_port = static_cast<unsigned short>(::atoi(argv[4]));
    const std::string local_host      = argv[1];
    const std::string forward_host    = argv[3];
 
     boost::thread_group threads;
-    for (int i = 0; i < num_threads; i++)
+    for (int i = 0; i < num_threads; i++) {
         threads.create_thread([local_port, forward_port, local_host, forward_host] { return run_proxy(local_port, forward_port, local_host, forward_host); });
+        local_port++;
+    }
     threads.join_all();
 
    return 0;
