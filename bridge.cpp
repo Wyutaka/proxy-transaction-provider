@@ -9,6 +9,8 @@
 #include <boost/thread/mutex.hpp>
 #include "server.h++"
 #include <iostream>
+#include "./src/lock/Lock.h++"
+#include "./src/transaction/parallelizable_sqlite3_wal.hpp"
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -106,6 +108,8 @@ namespace tcp_proxy {
             for (int i = 0; i < max_data_length; ++i) {
                 std::cout << downstream_data_[i];
             }
+            // TODO ここからLock相に移動
+            transaction::lock::Lock<transaction::ParallelizableSqlite3WalTransactionProvider<>>();
 
             std::cout << std::endl;
             async_write(upstream_socket_,
