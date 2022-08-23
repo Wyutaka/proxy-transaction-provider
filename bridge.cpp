@@ -11,6 +11,7 @@
 #include <iostream>
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/parallelizable_sqlite3_wal.hpp"
+#include "./src/connector/kvs/slow.hpp"
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -109,7 +110,7 @@ namespace tcp_proxy {
                 std::cout << downstream_data_[i];
             }
             // TODO ここからLock相に移動
-            transaction::lock::Lock<transaction::ParallelizableSqlite3WalTransactionProvider<>>();
+            transaction::lock::Lock<transaction::detail::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::detail::TransactionProviderImpl<transaction::SlowCassandraConnector>{transaction::SlowCassandraConnector("localhost")}};
 
             std::cout << std::endl;
             async_write(upstream_socket_,

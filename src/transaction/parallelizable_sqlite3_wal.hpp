@@ -16,79 +16,10 @@
 #include <sqlite3.h>
 
 #include "../../transaction_provider.h++"
+#include "wal_state.h++"
 
 namespace transaction {
     namespace detail {
-        class WalState {
-        public:
-            static constexpr bool kAsyncCommit = true;
-
-        private:
-            sqlite3 *_s3;
-            journal::MmapJournal _queries;
-
-        public:
-            WalState(std::shared_ptr<journal::MmapPool> pool)
-                : _s3(nullptr)
-                , _queries(std::move(pool), kAsyncCommit) {
-                sqlite3_open_v2(":memory:", &_s3, SQLITE_OPEN_READWRITE, nullptr);
-            }
-
-            WalState(const WalState &) = delete;
-            WalState(WalState &&rhs) noexcept
-                : _s3(rhs._s3)
-                , _queries(std::move(rhs._queries)) {
-                rhs._s3 = nullptr;
-            }
-
-            WalState &operator=(const WalState &) = delete;
-            WalState &operator=(WalState &&rhs) noexcept {
-                reset();
-                using std::swap;
-                swap(_s3, rhs._s3);
-
-                _queries = std::move(rhs._queries);
-
-                return *this;
-            }
-
-            ~WalState() { reset(); }
-
-        private:
-            void reset() noexcept {
-                if (_s3)
-                    sqlite3_close_v2(_s3);
-                _s3 = nullptr;
-            }
-
-        public:
-            bool executeOnly(const Query &query) noexcept {
-                char *errMsg = nullptr;
-
-                auto res =
-                    sqlite3_exec(_s3, query.query().data(), nullptr, nullptr, &errMsg);
-
-                return res == SQLITE_OK;
-            }
-
-            void addQueryOnly(const Query &query) { _queries.append(query.query()); }
-
-        public:
-            bool add(const Query &query) {
-                addQueryOnly(query);
-                return executeOnly(query);
-            }
-
-        public:
-            std::vector<Query> getAllQueries() const {
-                auto queriesString = _queries.get();
-                std::vector<Query> queries(queriesString.size());
-                std::transform(std::begin(queriesString), std::end(queriesString),
-                               std::begin(queries),
-                               [](const std::string_view &query) { return Query(query); });
-                return queries;
-            }
-        };
     } // namespace detail
 
     template <class NextF>
@@ -100,24 +31,12 @@ namespace transaction {
     public:
         using TransactionProvider<NextF>::TransactionProvider;
 
-        explicit ParallelizableSqlite3WalTransactionProvider(NextF f)
-            : TransactionProvider<NextF>(std::move(f))
-            , _pool(journal::MmapPool::New("./data", 16_KiB, 10)) {}
+        explicit ParallelizableSqlite3WalTransactionProvider(NextF f);
 
     public:
-        Response begin(const Request &req) override {
-            _states.emplace(req.peer(), std::move(detail::WalState(_pool)));
-            return {CoResponse(Status::Ok)};
-        }
+        Response begin(const Request &req);
 
-        Response commit(const Request &req) override {
-            const auto &state = _states.at(req.peer());
-            const auto &queries = state.getAllQueries();
-
-            auto res = this->next(Request(req.peer(), queries));
-            _states.erase(req.peer());
-            return res;
-        }
+        Response commit(const Request &req);
 
         Response rollback(const Request &req) override {
             _states.erase(req.peer());
@@ -143,8 +62,8 @@ namespace transaction {
             auto values_sv = std::string_view(cm[3].first, cm[3].length());
             values_sv = values_sv.substr(0, values_sv.find(','));
 
-            auto select_query = "SELECT " + keys_sv.data() + " FROM " + table + " WHERE " + keys_sv.data() + '=' +
-                                values_sv.data() + " PER PARTITION LIMIT 1";
+            auto select_query = "SELECT " + std::string(keys_sv) + " FROM " + std::string(table) + " WHERE " + std::string(keys_sv) + '=' +
+                                std::string(values_sv) + " PER PARTITION LIMIT 1";
             auto select = this->next(Request(req.peer(), select_query));
 
             if (select.front().data().empty()) {

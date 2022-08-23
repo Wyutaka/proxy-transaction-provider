@@ -13,22 +13,20 @@
 
 #include "../../transaction_provider.h++"
 
-namespace transaction {
-    namespace detail {
+namespace transaction::detail {
         class State {
-
         public:
             State();
-            State(const State &) = delete;
+            State(const State &) = delete; // A deleted function is implicitly inline. A deleted definition of a function must be the first declaration of the function.
             State(State &&rhs) noexcept;
-            State &operator=(const State &);
+            State &operator=(const State &) = delete;
             State &operator=(State &&rhs) noexcept;
             ~State();
 
             bool executeOnly(const Query &query) noexcept;
             void addQueryOnly(const Query &query);
             bool add(const Query &query);
-            const std::vector <Query> &getAllQueries() const;
+            [[nodiscard]] const std::vector <Query> &getAllQueries() const;
 
         private:
             sqlite3 *_s3;
@@ -36,7 +34,5 @@ namespace transaction {
 
             void reset() noexcept;
         };
-    } // namespace detail
-
-}
+    }
 #endif //MY_PROXY_STATE_H

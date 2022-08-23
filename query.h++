@@ -37,12 +37,6 @@ namespace transaction {
         Type type() const noexcept;
 
 
-    private:
-        static constexpr Type GetType(std::string_view query);
-
-        std::string_view _query;
-        Type _type;
-
 #define T(t)                                                                                       \
     bool is##t() const noexcept;
         T(Begin)
@@ -55,6 +49,12 @@ namespace transaction {
         T(InsertIfNotExists)
 #undef T
 
+
+    private:
+        static constexpr Type GetType(std::string_view query);
+
+        std::string_view _query;
+        Type _type;
     };
 
     inline std::ostream &operator<<(std::ostream &os, const Query &q);

@@ -1,0 +1,5 @@
+[requires]
+cassandra-cpp-driver/2.15.3
+
+[generators]
+cmake

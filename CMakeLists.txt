@@ -9,18 +9,26 @@ find_package(Boost REQUIRED)
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
+include(${CMAKE_SOURCE_DIR}/build/conanbuildinfo.cmake)
 link_directories(
         /opt/homebrew/Cellar/boost/1.79.0_1/lib
 )
 
+conan_basic_setup()
 add_executable(tcpproxy_server tcpproxy_server.cpp acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++)
+
+include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 target_link_libraries(tcpproxy_server Boost::boost)
 target_link_libraries(tcpproxy_server stdc++ pthread)
-message(STATUS "arch is ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "archtecture is ${CMAKE_SYSTEM_PROCESSOR}")
+link_directories( ${CONAN_INCLUDE_DIRS})
+
 IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
     target_link_libraries(tcpproxy_server stdc++ boost_thread-mt)
 ELSE(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
     message(STATUS "enter")
     target_link_libraries(tcpproxy_server stdc++ boost_thread)
 ENDIF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+
+target_link_libraries(tcpproxy_server ${CONAN_LIBS})
 

@@ -19,16 +19,13 @@ namespace transaction {
                 sqlite3_open_v2(":memory:", &_s3, SQLITE_OPEN_READWRITE, nullptr);
             }
 
-            State::State(const State &) = delete;
-
             State::State(State &&rhs) noexcept
                     : _s3(rhs._s3), _queries(std::move(rhs._queries)) {
                 rhs._s3 = nullptr;
             }
 
-            State::State &operator=(const State &) = delete;
 
-            State::State &operator=(State &&rhs) noexcept {
+            State &State::operator=(State &&rhs) noexcept {
                 State::reset();
                 using std::swap;
                 swap(State::_s3, rhs._s3);
