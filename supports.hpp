@@ -28,9 +28,6 @@ namespace transaction {
         }
     } // namespace pipes
 
-    bool StartsWith(const std::string &target, const std::string &check) {
-        return target.find(check) == 0;
-    }
 } // namespace transaction
 
 #endif // TRANSACTION_SUPPORTS_HPP

@@ -19,14 +19,16 @@ namespace transaction {
             using Sl = detail::shared_lock<detail::shared_mutex>;
 
         public:
-            explicit Lock(NextF next);
+            explicit Lock(NextF next)
+                    : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
+
             Response operator()(const Request &req);
 
 
         private:
             bool _getLock(const Peer &peer) ;
 
-            NextF _next;
+            NextF _next; // transaction
             detail::MyAtomicFlag _lock;
             std::unique_ptr<detail::shared_mutex> _mutex;
             Peer _currentLocker;

@@ -13,10 +13,6 @@ namespace transaction {
         using Sl = detail::shared_lock<detail::shared_mutex>;
 
         template<class NextF>
-        Lock<NextF>::Lock(NextF next)
-                : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
-
-        template<class NextF>
         bool Lock<NextF>::_getLock(const Peer &peer) {
             // ip port
 

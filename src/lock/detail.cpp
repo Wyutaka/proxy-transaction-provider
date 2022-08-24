@@ -25,17 +25,8 @@ namespace transaction {
 
                 void MyAtomicFlag::clear() noexcept { __asm__ __volatile__("movb $0, %0" : "=g"(_flag)); }
 
-
                 shared_mutex::shared_mutex()
                         : _shared(0), _unique() {}
-
-                shared_mutex::shared_mutex(const shared_mutex &) = delete;
-
-                shared_mutex::shared_mutex(shared_mutex &&) = delete;
-
-                shared_mutex::shared_mutex &operator=(const shared_mutex &) = delete;
-
-                shared_mutex::shared_mutex &operator=(shared_mutex &&) = delete;
 
                 void shared_mutex::lock_shared() {
                     lock();

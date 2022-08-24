@@ -3,10 +3,11 @@
 //
 
 #include <string_view>
+#include <ostream>
 #include "query.h++"
 
 namespace transaction {
-        static constexpr  Query::Type GetType(std::string_view query) {
+        constexpr Query::Type Query::GetType(std::string_view query) {
             switch (query[0]) {
                 case 'b':
                 case 'B':
@@ -55,14 +56,14 @@ namespace transaction {
 
 #define T(t)                                                                                       \
     bool Query::is##t() const noexcept { return type() == Type::k##t; }
-        T(Begin);
-        T(Commit);
-        T(Rollback);
-        T(Insert);
-        T(Select);
-        T(Update);
-        T(Create);
-        T(InsertIfNotExists);
+        T(Begin)
+        T(Commit)
+        T(Rollback)
+        T(Insert)
+        T(Select)
+        T(Update)
+        T(Create)
+        T(InsertIfNotExists)
 #undef T
 
     inline std::ostream &operator<<(std::ostream &os, const Query &q) {

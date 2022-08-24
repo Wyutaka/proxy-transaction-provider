@@ -15,7 +15,23 @@ link_directories(
 )
 
 conan_basic_setup()
-add_executable(tcpproxy_server tcpproxy_server.cpp acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++)
+
+add_executable(tcpproxy_server
+        tcpproxy_server.cpp
+        query.h++ query.cpp
+        supports.hpp
+        transaction_provider.cpp transaction_provider.h++
+        src/connector/kvs/slow.hpp
+        src/journal/mmap_journal.hpp
+        src/lock/detail.h++ src/lock/detail.cpp src/lock/lock.cpp src/lock/Lock.h++
+        src/peer/Peer.hpp
+        src/reqestresponse/Request.h++ src/reqestresponse/RowData.h++ src/reqestresponse/CoResponse.h++
+        src/transaction/parallelizable_sqlite3_wal.hpp src/transaction/sqlite3.hpp
+        src/transaction/State.cpp src/transaction/State.h++
+        src/transaction/through.hpp
+        src/transaction/transaction_impl.hpp src/transaction/transaction_impl.hpp
+        acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++
+        )
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 target_link_libraries(tcpproxy_server Boost::boost)
@@ -31,4 +47,5 @@ ELSE(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
 ENDIF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
 
 target_link_libraries(tcpproxy_server ${CONAN_LIBS})
+target_link_libraries(tcpproxy_server sqlite3)
 

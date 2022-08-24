@@ -58,6 +58,10 @@ namespace transaction {
             _cluster.reset();
         }
 
+        SlowCassandraConnector(const char string[10]) {
+
+        }
+
     private:
         static RowData _toRowData(const CassValue *value) {
             auto dataType = cass_value_data_type(value);

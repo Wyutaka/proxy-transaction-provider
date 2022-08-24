@@ -3,15 +3,13 @@
 //
 
 #include <boost/shared_ptr.hpp>
-#include <boost/enable_shared_from_this.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
 #include "server.h++"
 #include <iostream>
 #include "./src/lock/Lock.h++"
-#include "./src/transaction/parallelizable_sqlite3_wal.hpp"
-#include "./src/connector/kvs/slow.hpp"
+#include "./src/transaction/transaction_impl.hpp"
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -110,8 +108,12 @@ namespace tcp_proxy {
                 std::cout << downstream_data_[i];
             }
             // TODO ここからLock相に移動
-            transaction::lock::Lock<transaction::detail::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::detail::TransactionProviderImpl<transaction::SlowCassandraConnector>{transaction::SlowCassandraConnector("localhost")}};
+//            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{
+//                    transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>{
+//                            transaction::SlowCassandraConnector("localhost")}};
 
+            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))} ;
+//            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>{"localhost"}};
             std::cout << std::endl;
             async_write(upstream_socket_,
                         boost::asio::buffer(downstream_data_,bytes_transferred),

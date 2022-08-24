@@ -22,23 +22,31 @@
 
 namespace transaction {
     template <class IpAddress> class BasicPeer {
-    public:
-        BasicPeer();
-
-        BasicPeer(IpAddress ip, std::uint16_t port);
-
-        bool operator<(const BasicPeer &rhs) const;
-
-        [[nodiscard]] const IpAddress &ip() const;
-        [[nodiscard]] std::uint16_t port() const noexcept;
-
-        bool operator==(const BasicPeer &peer) const;
-        bool operator!=(const BasicPeer &peer) const;
-
     private:
         IpAddress _peerIp;
         std::uint16_t _peerPort;
 
+    public:
+        BasicPeer() = default;
+
+        BasicPeer(IpAddress ip, std::uint16_t port)
+                : _peerIp(std::move(ip))
+                , _peerPort(port) {}
+
+    public:
+        bool operator<(const BasicPeer &rhs) const {
+            return _peerPort < rhs._peerPort || _peerIp < rhs._peerIp;
+        }
+
+    public:
+        [[nodiscard]] const IpAddress &ip() const { return _peerIp; }
+        [[nodiscard]] std::uint16_t port() const noexcept { return _peerPort; }
+
+    public:
+        bool operator==(const BasicPeer &peer) const {
+            return peer._peerPort == _peerPort && peer._peerIp == _peerIp;
+        }
+        bool operator!=(const BasicPeer &peer) const { return !((*this) == peer); }
     };
 
     template <class IpAddress> struct BasicPeerHash {

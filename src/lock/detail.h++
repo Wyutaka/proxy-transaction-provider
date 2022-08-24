@@ -26,13 +26,13 @@ namespace transaction {
             public:
                 shared_mutex();
 
-                shared_mutex(const shared_mutex &);
+                shared_mutex(const shared_mutex &) = delete;
 
-                shared_mutex(shared_mutex &&);
+                shared_mutex(shared_mutex &&) = delete;
 
-                shared_mutex &operator=(const shared_mutex &);
+                shared_mutex &operator=(const shared_mutex &) = delete;
 
-                shared_mutex &operator=(shared_mutex &&);
+                shared_mutex &operator=(shared_mutex &&) = delete;
 
                 void lock();
 
