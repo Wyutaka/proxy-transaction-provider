@@ -32,16 +32,16 @@
 //        template <class NextF>
 //        Response TransactionProvider<NextF>::operator()(const Request &req) {
 //            switch (req.query().type()) {
-//                case Query::Type::kBegin:
+//                case Query::Type::Begin:
 //                    return begin(req);
 //
-//                case Query::Type::kCommit:
+//                case Query::Type::Commit:
 //                    return commit(req);
 //
-//                case Query::Type::kRollback:
+//                case Query::Type::Rollback:
 //                    return rollback(req);
 //
-//                case Query::Type::kInsertIfNotExists:
+//                case Query::Type::InsertIfNotExists:
 ////                    return insertIfNotExists(req);
 //
 //                default:

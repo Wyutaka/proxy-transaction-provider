@@ -11,8 +11,7 @@
 #include "src/peer/Peer.hpp"
 #include "src/reqestresponse/Request.h++"
 
-namespace transaction {
-    namespace lock {
+namespace transaction::lock {
         template<class NextF> class Lock {
         private:
             using Ul = std::unique_lock<detail::shared_mutex>;
@@ -22,11 +21,49 @@ namespace transaction {
             explicit Lock(NextF next)
                     : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
 
-            Response operator()(const Request &req);
+//            Response operator()(const Request &req);
+
+            Response operator()(const Request &req) {
+                using pipes::operator|;
+            // const auto query = req.query() | tolower;
+
+            if (req.query().isBegin()) {
+                if (!_getLock(req.peer())) {
+                    return Response({CoResponse(Status::Error)});
+                }
+            } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
+                if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
+                    return Response({CoResponse(Status::Error)});
+                }
+                auto res = _next(req);
+
+                _lock.clear();
+                return res;
+            } else if (_lock.test()) {
+                Sl sl(*_mutex);
+                if (req.peer() != _currentLocker) {
+                    return Response({CoResponse(Status::Error)});
+                }
+            }
+
+            return _next(req);
+            }
 
 
         private:
-            bool _getLock(const Peer &peer) ;
+            bool _getLock(const Peer &peer) {
+                // ip port
+
+                if (_lock.test_and_set() == true) {
+                    return false;
+                }
+
+                Ul ul(*_mutex);
+
+                _currentLocker = peer;
+
+                return true;
+            }
 
             NextF _next; // transaction
             detail::MyAtomicFlag _lock;
@@ -34,5 +71,4 @@ namespace transaction {
             Peer _currentLocker;
         };
     }
-}
 #endif //MY_PROXY_LOCK_H

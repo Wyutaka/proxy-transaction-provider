@@ -11,30 +11,30 @@ namespace transaction {
             switch (query[0]) {
                 case 'b':
                 case 'B':
-                    return Query::Type::kBegin;
+                    return Query::Type::Begin;
 
                 case 'c':
                 case 'C':
-                    return (query[1] == 'o' || query[1] == 'O') ? Query::Type::kCommit : Query::Type::kCreate;
+                    return (query[1] == 'o' || query[1] == 'O') ? Query::Type::Commit : Query::Type::Create;
 
                 case 'r':
                 case 'R':
-                    return Query::Type::kRollback;
+                    return Query::Type::Rollback;
 
                 case 'i':
                 case 'I':
-                    return (query.back() == ')') ? Query::Type::kInsert : Query::Type::kInsertIfNotExists;
+                    return (query.back() == ')') ? Query::Type::Insert : Query::Type::InsertIfNotExists;
 
                 case 's':
                 case 'S':
-                    return Query::Type::kSelect;
+                    return Query::Type::Select;
 
                 case 'u':
                 case 'U':
-                    return Query::Type::kUpdate;
+                    return Query::Type::Update;
 
                 default:
-                    return Query::Type::kUnknown;
+                    return Query::Type::Unknown;
             }
         }
 
@@ -55,7 +55,7 @@ namespace transaction {
         Query::Type Query::type() const noexcept { return _type; }
 
 #define T(t)                                                                                       \
-    bool Query::is##t() const noexcept { return type() == Type::k##t; }
+    bool Query::is##t() const noexcept { return type() == Type::t; }
         T(Begin)
         T(Commit)
         T(Rollback)

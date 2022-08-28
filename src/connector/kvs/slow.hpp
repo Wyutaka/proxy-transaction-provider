@@ -58,10 +58,6 @@ namespace transaction {
             _cluster.reset();
         }
 
-        SlowCassandraConnector(const char string[10]) {
-
-        }
-
     private:
         static RowData _toRowData(const CassValue *value) {
             auto dataType = cass_value_data_type(value);
@@ -135,6 +131,7 @@ namespace transaction {
         }
 
     public:
+        // ここをプロキシに置き換える
         Response operator()(const Request &req) { /*
              for (const auto &q : req.queries()) {
                  std::cout << q << std::endl;

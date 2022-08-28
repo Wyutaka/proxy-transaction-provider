@@ -6,8 +6,6 @@
 // Created by cerussite on 2019/12/21.
 //
 
-#pragma once
-
 #include <map>
 #include <vector>
 #include "../../transaction_provider.h++"

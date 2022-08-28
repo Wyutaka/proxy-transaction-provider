@@ -104,17 +104,18 @@ namespace tcp_proxy {
     {
         if (!error)
         {
-            for (int i = 0; i < max_data_length; ++i) {
-                std::cout << downstream_data_[i];
-            }
-            // TODO ここからLock相に移動
-//            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{
-//                    transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>{
-//                            transaction::SlowCassandraConnector("localhost")}};
+//            for (int i = 0; i < max_data_length; ++i) {
+//                std::cout << downstream_data_[i];
+//            }
+//            std::cout << std::endl;
 
-            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))} ;
-//            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>{"localhost"}};
-            std::cout << std::endl;
+            // TODO requestを投げてresponseを得るところを検出
+            // lockが発火していない
+            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))};
+            const transaction::Request req = transaction::Request(transaction::Peer(), std::vector<transaction::Query>());
+            lock(req);
+//            lock();
+
             async_write(upstream_socket_,
                         boost::asio::buffer(downstream_data_,bytes_transferred),
                         boost::bind(&bridge::handle_upstream_write,

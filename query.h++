@@ -13,15 +13,15 @@ namespace transaction {
     class Query {
     public:
         enum class Type {
-            kBegin,
-            kCommit,
-            kRollback,
-            kInsert,
-            kInsertIfNotExists,
-            kSelect,
-            kUpdate,
-            kCreate,
-            kUnknown,
+            Begin,
+            Commit,
+            Rollback,
+            Insert,
+            InsertIfNotExists,
+            Select,
+            Update,
+            Create,
+            Unknown,
         };
 
     public:
