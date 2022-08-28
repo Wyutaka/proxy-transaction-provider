@@ -41,6 +41,7 @@ namespace transaction {
             : _connectFuture()
             , _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new()))
             , _session(std::shared_ptr<CassSession>(cass_session_new(), detail::SessionDeleter())) {
+            cass_cluster_set_protocol_version(_cluster.get(), 4);
             cass_cluster_set_contact_points(_cluster.get(), host.c_str());
             _connectFuture =
                 CASS_SHARED_PTR(future, cass_session_connect(_session.get(), _cluster.get()));

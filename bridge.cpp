@@ -113,7 +113,8 @@ namespace tcp_proxy {
             // lockが発火していない
             transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))};
             const transaction::Request req = transaction::Request(transaction::Peer(), std::vector<transaction::Query>());
-            lock(req);
+            // 初期化はできる
+//            lock(req);
 //            lock();
 
             async_write(upstream_socket_,
