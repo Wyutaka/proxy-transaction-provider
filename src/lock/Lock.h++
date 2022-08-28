@@ -10,6 +10,8 @@
 #include "supports.hpp"
 #include "src/peer/Peer.hpp"
 #include "src/reqestresponse/Request.h++"
+#include "detail.h++"
+#include "shared_mutex.h++"
 
 namespace transaction::lock {
         template<class NextF> class Lock {

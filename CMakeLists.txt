@@ -20,15 +20,15 @@ conan_basic_setup()
 
 add_executable(tcpproxy_server
         tcpproxy_server.cpp
-        query.h++ query.cpp
+        query.h++
         supports.hpp
-        transaction_provider.cpp transaction_provider.h++
+        transaction_provider.h++
         src/connector/kvs/slow.hpp
         src/journal/mmap_journal.hpp
-        src/lock/detail.h++ src/lock/detail.cpp src/lock/Lock.h++
+        src/lock/detail.h++ src/lock/Lock.h++
         src/peer/Peer.hpp
-        src/reqestresponse/Request.h++ src/reqestresponse/RowData.h++ src/reqestresponse/CoResponse.h++ src/transaction/transaction_impl.hpp src/transaction/transaction_impl.cpp src/transaction/sqlite3.hpp
-        src/transaction/State.cpp src/transaction/State.h++ src/transaction/through.hpp
+        src/reqestresponse/Request.h++ src/reqestresponse/RowData.h++ src/reqestresponse/CoResponse.h++ src/transaction/transaction_impl.hpp src/transaction/sqlite3.hpp
+        src/transaction/State.h++ src/transaction/through.hpp
         acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++
         src/lock/shared_mutex.h++)
 

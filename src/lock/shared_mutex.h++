@@ -13,41 +13,38 @@
 namespace transaction {
     namespace lock {
         namespace detail {
+
             class shared_mutex {
+            private:
+                std::atomic<int> _shared;
+                std::atomic_flag _unique;
+
             public:
-                shared_mutex() : _shared(0), _unique() {};
-
+                shared_mutex()
+                        : _shared(0)
+                        , _unique() {}
                 shared_mutex(const shared_mutex &) = delete;
-
                 shared_mutex(shared_mutex &&) = delete;
-
                 shared_mutex &operator=(const shared_mutex &) = delete;
-
                 shared_mutex &operator=(shared_mutex &&) = delete;
 
-                ~shared_lock() { _mutex.unlock_shared(); }
-
-                void lock() {
-                    while (_unique.test_and_set());
-                    while (_shared > 0);
-                };
-
-                void unlock() {
-                    _shared -= 1;
-                };
-
+            public:
                 void lock_shared() {
                     lock();
                     _shared += 1;
                     unlock();
-                };
+                }
 
-                // TODO 実装をm
-                void unlock_shared();
+                void unlock_shared() { _shared -= 1; }
 
-            private:
-                std::atomic<int> _shared;
-                std::atomic_flag _unique;
+            public:
+                void lock() {
+                    while (_unique.test_and_set())
+                        ;
+                    while (_shared > 0)
+                        ;
+                }
+                void unlock() { _unique.clear(); }
             };
         }
     }

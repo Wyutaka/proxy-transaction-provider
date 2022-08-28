@@ -16,7 +16,7 @@ link_directories(
 conan_basic_setup()
 
 add_library(transaction STATIC
-        State.cpp transaction_impl.cpp State.h++ sqlite3.hpp through.hpp transaction_impl.hpp
+        State.h++ sqlite3.hpp through.hpp transaction_impl.hpp
         )
 
 include_directories(transaction ${CONAN_INCLUDE_DIRS})

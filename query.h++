@@ -25,20 +25,24 @@ namespace transaction {
         };
 
     public:
-        Query();
-        explicit Query(const std::string_view &sv);
-        Query(const Query &);
-        Query(Query &&);
-        Query &operator=(const Query &);
-        Query &operator=(Query &&);
-        ~Query();
-        [[nodiscard]] const std::string_view &query() const noexcept;
+        Query() = default;
+        Query(const std::string_view &sv)
+                : _query(sv)
+                , _type(GetType(sv)) {}
 
-        Type type() const noexcept;
+        Query(const Query &) = default;
+        Query(Query &&) = default;
 
+        Query &operator=(const Query &) = default;
+        Query &operator=(Query &&) = default;
+        ~Query() = default;
+
+        Type type() const noexcept { return _type; };
+
+        const std::string_view &query() const noexcept { return _query; }
 
 #define T(t)                                                                                       \
-    bool is##t() const noexcept;
+    bool is##t() const noexcept { return type() == Type::t; }
         T(Begin)
         T(Commit)
         T(Rollback)
@@ -49,15 +53,48 @@ namespace transaction {
         T(InsertIfNotExists)
 #undef T
 
+    private:
+        static constexpr Type GetType(std::string_view query)
+        {
+            switch (query[0]) {
+                case 'b':
+                case 'B':
+                    return Query::Type::Begin;
+
+                case 'c':
+                case 'C':
+                    return (query[1] == 'o' || query[1] == 'O') ? Query::Type::Commit : Query::Type::Create;
+
+                case 'r':
+                case 'R':
+                    return Query::Type::Rollback;
+
+                case 'i':
+                case 'I':
+                    return (query.back() == ')') ? Query::Type::Insert : Query::Type::InsertIfNotExists;
+
+                case 's':
+                case 'S':
+                    return Query::Type::Select;
+
+                case 'u':
+                case 'U':
+                    return Query::Type::Update;
+
+                default:
+                    return Query::Type::Unknown;
+            }
+        }
 
     private:
-        static constexpr Type GetType(std::string_view query);
-
         std::string_view _query;
         Type _type;
     };
 
-    inline std::ostream &operator<<(std::ostream &os, const Query &q);
+    inline std::ostream &operator<<(std::ostream &os, const Query &q){
+        os << q.query();
+        return os;
+    }
 
 } // namespace transaction
 #endif //MY_PROXY_QUERY_H

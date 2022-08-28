@@ -8,9 +8,7 @@
 #include <atomic>
 #include <shared_mutex>
 
-namespace transaction {
-    namespace lock {
-        namespace detail {
+namespace transaction::lock::detail {
             class MyAtomicFlag {
             public:
                 bool test_and_set() noexcept
@@ -34,8 +32,19 @@ namespace transaction {
 
             };
 
-        } // namespace detail
-    }
-}
+            template <class MtxT> class shared_lock {
+            private:
+                MtxT &_mutex;
+
+            public:
+                explicit shared_lock(MtxT &mtx)
+                        : _mutex(mtx) {
+                    _mutex.lock_shared();
+                }
+
+                ~shared_lock() { _mutex.unlock_shared(); }
+            };
+
+        }
 
 #endif //MY_PROXY_DETAIL_H

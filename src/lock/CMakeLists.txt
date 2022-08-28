@@ -16,7 +16,7 @@ link_directories(
 conan_basic_setup()
 
 add_library(lock STATIC
-        detail.cpp detail.h++ Lock.h++
+        detail.h++ Lock.h++
         )
 
 include_directories(lock ${CONAN_INCLUDE_DIRS})
