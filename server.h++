@@ -15,7 +15,8 @@ namespace tcp_proxy {
         typedef ip::tcp::socket socket_type;
         typedef boost::shared_ptr<bridge> ptr_type;
     public:
-        explicit bridge(boost::asio::io_service& ios);
+        explicit bridge(boost::asio::io_service& ios, unsigned short upstream_port
+        , std::string upstream_host);
         ~bridge();
         socket_type& downstream_socket();
         socket_type& upstream_socket();
@@ -41,6 +42,8 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;
+        unsigned short upstream_port_;
+        std::string upstream_host_;
 
     // inner class
     public:

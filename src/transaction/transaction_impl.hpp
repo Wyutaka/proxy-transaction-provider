@@ -80,27 +80,24 @@ namespace transaction {
 
             switch (query.type()) {
                 case Query::Type::Begin:
-                    begin(req);
-                    break;
+                    return begin(req);
                 case Query::Type::Commit:
-                    commit(req);
-                    break;
+                    return commit(req);
                 case Query::Type::Rollback:
-                    rollback(req);
-                    break;
+                    return rollback(req);
                     // TODO Lwtの実装
 //                case Query::Type::InsertIfNotExists: // now not implemented
 //                    (std::move(req), res);
 //                    break;
                 case Query::Type::Unknown:
-                    _next(std::move(req));
-                    break;
+                    return _next(std::move(req));
+                    // ここまでh通っているt
                     // TODO SELECTの実装
 //                case Query::Type::Select:
 //                    select(std::move(req), res);
 //                    break;
                 default:
-                    _normal(std::move(req));
+                    return _normal(std::move(req));
             }
         }
     };

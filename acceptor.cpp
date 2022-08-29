@@ -33,7 +33,7 @@ namespace tcp_proxy {
 
         try
         {
-            session_ = boost::shared_ptr<bridge>(new bridge(io_service_));
+            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_));
 
             acceptor_.async_accept(session_->downstream_socket(),
                                    boost::bind(&acceptor::handle_accept,

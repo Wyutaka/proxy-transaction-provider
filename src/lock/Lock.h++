@@ -29,20 +29,24 @@ namespace transaction::lock {
                 using pipes::operator|;
             // const auto query = req.query() | tolower;
 
-            if (req.query().isBegin()) {
+
+                if (req.query().isBegin()) {
                 if (!_getLock(req.peer())) {
+
                     return Response({CoResponse(Status::Error)});
                 }
             } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
                 if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
                     return Response({CoResponse(Status::Error)});
                 }
+
                 auto res = _next(req);
 
                 _lock.clear();
                 return res;
             } else if (_lock.test()) {
-                Sl sl(*_mutex);
+
+                    Sl sl(*_mutex);
                 if (req.peer() != _currentLocker) {
                     return Response({CoResponse(Status::Error)});
                 }

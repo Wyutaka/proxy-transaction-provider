@@ -14,9 +14,11 @@
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
     typedef boost::shared_ptr<bridge> ptr_type;
-    bridge::bridge(boost::asio::io_service& ios): downstream_socket_(ios),
-                                                  upstream_socket_(ios)
-    {}
+    bridge::bridge(boost::asio::io_service& ios, unsigned short upstream_port
+            , std::string upstream_host): downstream_socket_(ios),
+            upstream_socket_(ios),
+            upstream_host_(upstream_host_),
+            upstream_port_(upstream_port_) {}
 
     bridge::~bridge() {
 
@@ -112,10 +114,11 @@ namespace tcp_proxy {
             // TODO requestを投げてresponseを得るところを検出
             // lockが発火していない
             transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))};
-            const transaction::Request req = transaction::Request(transaction::Peer(), std::vector<transaction::Query>());
+            const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
+                    reinterpret_cast<const char *>(downstream_data_)));
             // 初期化はできる
-//            lock(req);
-//            lock();
+            lock(req);
+
 
             async_write(upstream_socket_,
                         boost::asio::buffer(downstream_data_,bytes_transferred),
