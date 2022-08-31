@@ -106,6 +106,7 @@ namespace tcp_proxy {
     {
         if (!error)
         {
+//            std::cout << "raw_socket::::";
 //            for (int i = 0; i < max_data_length; ++i) {
 //                std::cout << downstream_data_[i];
 //            }
@@ -113,9 +114,11 @@ namespace tcp_proxy {
 
             // TODO requestを投げてresponseを得るところを検出
             // lockが発火していない
-            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("localhost"))};
+            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1"))};
             const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
-                    reinterpret_cast<const char *>(downstream_data_)));
+                    reinterpret_cast<const char *>(downstream_data_), sizeof(downstream_data_)/ sizeof(char)));
+//            const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
+//                    "select * from system.local;"));
             // 初期化はできる
             lock(req);
 

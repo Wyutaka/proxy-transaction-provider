@@ -1,6 +1,3 @@
-//
-// Created by cerussite on 2019/09/08.
-//
 
 // TODO DON'T USE!!
 
@@ -147,6 +144,10 @@ namespace transaction {
                     statement, cass_statement_new_n(query.query().data(), query.query().size(), 0));
                 resultFutures.emplace_back(
                     CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get())));
+
+//                std::string_view raw = query.query();
+//                // send by ios
+//                std::cout << query.query() << std::endl;
             }
 
             Response res;
@@ -157,7 +158,7 @@ namespace transaction {
 
                 auto errorCode = cass_future_error_code(future);
                 if (errorCode != CASS_OK) {
-                    std::cerr << errorCode << " " << cass_error_desc(errorCode) << std::endl;
+                    std::cerr << errorCode << " error!!! " << cass_error_desc(errorCode) << std::endl;
                     /*if (auto errorResult =
                             CASS_SHARED_PTR(error_result, cass_future_get_error_result(future));
                         errorResult) {

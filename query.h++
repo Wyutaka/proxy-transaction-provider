@@ -28,7 +28,9 @@ namespace transaction {
         Query() = default;
         Query(const std::string_view &sv)
                 : _query(sv)
-                , _type(GetType(sv)) {}
+                , _type(GetType(sv)) {
+//                        std::cout << "req.query():" << sv << std::endl; // ここはok
+        }
 
         Query(const Query &) = default;
         Query(Query &&) = default;
@@ -37,9 +39,12 @@ namespace transaction {
         Query &operator=(Query &&) = default;
         ~Query() = default;
 
-        Type type() const noexcept { return _type; };
+        [[nodiscard]] Type type() const noexcept { return _type; };
 
-        const std::string_view &query() const noexcept { return _query; }
+//        [[nodiscard]] const std::string_view &query() const noexcept {
+            [[nodiscard]] std::string_view query() const noexcept {
+//            std::cout << "req.query() aadfa: " << _query << std::endl; // ここはだめ...
+            return _query; }
 
 #define T(t)                                                                                       \
     bool is##t() const noexcept { return type() == Type::t; }
