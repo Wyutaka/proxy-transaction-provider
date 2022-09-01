@@ -129,7 +129,7 @@ namespace transaction {
         }
 
     public:
-        // ここをプロキシに置き換える
+        // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req) { /*
              for (const auto &q : req.queries()) {
                  std::cout << q << std::endl;
@@ -138,12 +138,22 @@ namespace transaction {
              return {CoResponse(Status::Error)};*/
 
             std::vector<std::shared_ptr<CassFuture>> resultFutures;
+//            std::cout << "raw_request: " << req.query().query() << std::endl; // ここがおかしかった
+
+
             resultFutures.reserve(req.queries().size());
             for (const auto &query : req.queries()) {
+
                 auto statement = CASS_SHARED_PTR(
                     statement, cass_statement_new_n(query.query().data(), query.query().size(), 0));
                 resultFutures.emplace_back(
-                    CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get())));
+                    CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get()))); // execute
+
+//                async_write(upstream_socket_,
+//                            boost::asio::buffer(downstream_data_,bytes_transferred),
+//                            boost::bind(&bridge::handle_upstream_write,
+//                                        shared_from_this(),
+//                                        boost::asio::placeholders::error));
 
 //                std::string_view raw = query.query();
 //                // send by ios

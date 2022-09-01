@@ -112,17 +112,17 @@ namespace tcp_proxy {
 //            }
 //            std::cout << std::endl;
 
-            // TODO requestを投げてresponseを得るところを検出
             // lockが発火していない
             transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1"))};
-            const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
-                    reinterpret_cast<const char *>(downstream_data_), sizeof(downstream_data_)/ sizeof(char)));
+            const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
+                    reinterpret_cast<const char *>(downstream_data_), bytes_transferred));
 //            const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
 //                    "select * from system.local;"));
+
             // 初期化はできる
             lock(req);
 
-
+            // kc層に以降 bridgeを渡せばええんかな？
             async_write(upstream_socket_,
                         boost::asio::buffer(downstream_data_,bytes_transferred),
                         boost::bind(&bridge::handle_upstream_write,

@@ -26,10 +26,10 @@ namespace transaction {
 
     public:
         Query() = default;
-        Query(const std::string_view &sv)
-                : _query(sv)
+        explicit Query(const std::string_view &sv)
+                : _query(std::string(sv))
                 , _type(GetType(sv)) {
-//                        std::cout << "req.query():" << sv << std::endl; // ここはok
+//                        std::cout << "req.query():" << _query << std::endl; // ここはok
         }
 
         Query(const Query &) = default;
@@ -92,7 +92,8 @@ namespace transaction {
         }
 
     private:
-        std::string_view _query;
+//        std::string_view _query;
+        std::string _query;
         Type _type;
     };
 

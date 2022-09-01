@@ -6,6 +6,7 @@
 #define MY_PROXY_REQUEST_H
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <string_view>
 
@@ -30,14 +31,17 @@ namespace transaction {
     public:
         explicit Request(Peer p, std::vector<Query> queries)
                 : _queries(std::move(queries))
-                , _peer(std::move(p)) {}
+                , _peer(std::move(p)) {
+//            std::cout << "query.size()" << _queries.size() << std::endl;
+//            std::cout << "req.query() is : " << _queries[0].query() << std::endl; // ここはOK
+        }
         Request(Peer p, Query query)
                 : Request(std::move(p), std::vector<Query>{query}) {
         }
 
         Request(Peer p, std::string_view query)
                 : Request(std::move(p), Query(custom_search::query_itr(query))) { // dataで渡すと動くう
-//            std::cout << "raw_request: " << query << std::endl; // ここはいける
+            std::cout << "raw_request: " << query << std::endl; // ここはいける
 
             std::cout << "trimed :"  << custom_search::query_itr(query) << std::endl;
         }
@@ -53,7 +57,8 @@ namespace transaction {
         [[nodiscard]] const std::vector<Query> queries() const { return _queries; }
         [[nodiscard]] const Query &query() const {
             // 正しい値が遅れない
-//            std::cout << "req.query()" << _queries[0].query() << std::endl; // ここはだめ
+//            std::cout << "query.size()" << _queries.size() << std::endl;
+//            std::cout << "req.query()" << _queries[0].query() << std::endl;
 
             return _queries[0]; }
         [[nodiscard]] const Peer &peer() const { return _peer; }

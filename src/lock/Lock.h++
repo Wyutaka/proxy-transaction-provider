@@ -34,7 +34,7 @@ namespace transaction::lock {
 //
 //                std::cout << req.query().query().data() << std::endl;
 //                �����stem.local;
-//                std::cout <<  "req.query()" << req.query().query() << std::endl
+//                std::cout <<  "req.query() in lock :" << req.query().query() << std::endl; // 値が取れていない
 
                 if (req.query().isBegin()) {
                 if (!_getLock(req.peer())) {
