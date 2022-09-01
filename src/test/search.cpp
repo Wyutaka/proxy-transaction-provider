@@ -16,19 +16,29 @@
 #include <boost/algorithm/searching/boyer_moore_horspool.hpp>
 #include <boost/algorithm/searching/knuth_morris_pratt.hpp>
 
-std::cmatch first_roman(std::string_view corpus) {
+std::cmatch first_roman_itr(std::string_view corpus) {
+    std::cout << "corpus : " << corpus << std::endl; // これは出力される
     std::cmatch m;
-//    std::cout << "(2) " << std::regex_search(corpus.c_str(), m, sttd::regex("[A-Za-z]+")) << std::endl;
-    int result = std::regex_search(corpus.data(), m, std::regex("[A-Za-z]"));
-    if (result == 1) {
-        std::cout << "pattern found" << std::endl;
-    }
-//    std::cout << "str = '" << m.str() << "', position = " << m.position() << std::endl;
+    std::regex_search(corpus.begin(), corpus.end(), m, std::regex("[A-Za-z]"));
     return m;
 }
 
-std::cmatch wrap(std::string_view corpus) {
-    return first_roman(corpus);
+std::string_view query_itr(std::string_view corpus) {
+    // DONE A.SELECTの場合、Aは取り除きたい
+    // TODO 後ろの余分な文字を切り取りたい?
+    // 末尾に$がある
+    std::cout << "corpus : " << corpus << std::endl; // これは出力される
+    std::cmatch m;
+    int result = std::regex_search(corpus.begin(), corpus.end(), m, std::regex("(be|co|ro|in|se|up|cr)\.\+", std::regex_constants::icase));
+    std::string::size_type semi_pos = m.str().find(';');
+    if (result == 1) {
+        std::cout << "pattern match " << std::endl; // これは出力される
+        std::cout << "str = " << m.str() << "\nsubmatch_size = " << m.size()  << "\nstr_size = " << m.str().size() << "\nposition = " << m.position() << std::endl;
+        return corpus.substr(m.position(), semi_pos) ;
+    } else {
+        return corpus;
+    }
+
 }
 
 int main() {
@@ -36,24 +46,22 @@ int main() {
 //    std::string corpus = "BANNANABANANAN";
 //    std::string start_pattern = "BANANA";
 
-//    std::string corpus = "!SELECT * FROM system.peers";
-    std::string_view corpus = "!SELECT * FROM system.peers";
-
+    std::string_view corpus = "4SELECT * FROM ybdemo.employee;4�U|��$��Tz��";
     std::string start_pattern = "SELECT";
     // a-z,A-Zを切り抜きたい
 
+
     // (2) の形式
-    std::cmatch m = wrap(corpus);
-//    std::cout << "(2) " << std::regex_search(corpus.c_str(), m, std::regex("[A-Za-z]+")) << std::endl;
-    std::cout << "str = '" << m.str() << "', position = " << m.position() << std::endl;
-    std::cout << std::string_view(corpus).substr(m.position(), corpus.size()) << std::endl;
+//    std::cmatch m = query_itr(corpus);
+//    std::cout << "str = '" << m.str() << "', position = " << m.position() << std::endl;
+//    std::cout << std::string_view(corpus).substr(m.position(), corpus.size()) << std::endl;
+    std::cout << query_itr(corpus) << std::endl;
 
-
-    std::pair search_result = boost::algorithm::boyer_moore_search(
-            corpus.begin(), corpus.end(),
-            start_pattern.begin(), start_pattern.end());
-
-    std::cout << (search_result.first - corpus.begin()) << std::endl;
+//    std::pair search_result = boost::algorithm::boyer_moore_search(
+//            corpus.begin(), corpus.end(),
+//            start_pattern.begin(), start_pattern.end());
+//
+//    std::cout << (search_result.first - corpus.begin()) << std::endl;
     return 0;
 }
 

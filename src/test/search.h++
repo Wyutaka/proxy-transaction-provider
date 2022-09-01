@@ -35,6 +35,19 @@ namespace custom_search {
         }
         return m;
     }
+
+    std::string_view query_itr(std::string_view corpus) {
+        // TODO 後ろの余分な文字を切り取りたい?
+        // 末尾に$がある
+        std::cmatch m;
+        int result = std::regex_search(corpus.begin(), corpus.end(), m, std::regex("(be|co|ro|in|se|up|cr)\.\+", std::regex_constants::icase));
+        std::string::size_type semi_pos = m.str().find(';');
+        if (result == 1) {
+            return corpus.substr(m.position(), semi_pos+1) ; // +1 -> ;
+        } else {
+            return corpus;
+        }
+    }
 } // namespace custom_search
 
 

@@ -36,12 +36,10 @@ namespace transaction {
         }
 
         Request(Peer p, std::string_view query)
-                : Request(std::move(p), Query(query.substr(custom_search::first_roman(query).position(), query.size()))) { // dataで渡すと動くう
-            std::cout << "raw_request: " << query << std::endl; // ここはいける
+                : Request(std::move(p), Query(custom_search::query_itr(query))) { // dataで渡すと動くう
+//            std::cout << "raw_request: " << query << std::endl; // ここはいける
 
-            std::cmatch m = custom_search::first_roman(std::string(query)); // queryがfirst_roman側でからもじ
-            std::cout << "str = '" << m.str() << "', position = " << m.position() << std::endl;
-            std::cout << "trimed :"  << query.substr(m.position(), query.size()) << std::endl;
+            std::cout << "trimed :"  << custom_search::query_itr(query) << std::endl;
         }
 
     public:
