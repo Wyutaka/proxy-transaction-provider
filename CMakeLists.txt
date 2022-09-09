@@ -32,7 +32,7 @@ add_executable(tcpproxy_server
         acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++
         src/lock/shared_mutex.h++ src/test/search.h++
         src/test/search.h++
-        )
+        src/test/DumpHex.h++)
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 target_link_libraries(tcpproxy_server Boost::boost)

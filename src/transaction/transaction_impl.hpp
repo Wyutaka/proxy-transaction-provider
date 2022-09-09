@@ -43,7 +43,7 @@ namespace transaction {
             const auto &state = _states[req.peer()];
             const auto &queries = state.getAllQueries();
 
-            auto res = this->next(Request(req.peer(), queries));
+            auto res = this->next(Request(req.peer(), queries, req.raw_request()));
             _states.erase(req.peer());
             return res;
         }
@@ -77,6 +77,8 @@ namespace transaction {
 
         Response operator()(Request req) {
             const auto &query = req.query();
+            std::cout << "raw_request in transaction: " << std::endl; // ここがおかしい
+            debug::hexdump(req.raw_request().data(), req.raw_request().size());
 
             switch (query.type()) {
                 case Query::Type::Begin:

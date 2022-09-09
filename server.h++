@@ -23,12 +23,9 @@ namespace tcp_proxy {
         void start(const std::string& upstream_host, unsigned short upstream_port);
         void close();
         void handle_upstream_connect(const boost::system::error_code& error);
-    private:
-        void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
-        void handle_downstream_write(const boost::system::error_code& error);
         /*
-           Section B: Client --> Proxy --> Remove Server
-           Process data recieved from client then write to remove server.
+            Section B: Client --> Proxy --> Remove Server
+            Process data recieved from client then write to remove server.
         */
 
         // Read from client complete, now send data to remote server
@@ -36,8 +33,13 @@ namespace tcp_proxy {
                                     const size_t& bytes_transferred);
         // Write to remote server complete, Async read from client
         void handle_upstream_write(const boost::system::error_code& error);
-        socket_type downstream_socket_;
         socket_type upstream_socket_;
+
+    private:
+        void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
+        void handle_downstream_write(const boost::system::error_code& error);
+        socket_type downstream_socket_;
+
         enum { max_data_length = 8192 }; //8KB
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];

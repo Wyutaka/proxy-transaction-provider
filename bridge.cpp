@@ -7,9 +7,12 @@
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
 #include "server.h++"
+#include <stdlib.h>
 #include <iostream>
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/transaction_impl.hpp"
+#include "./src/test/DumpHex.h++"
+#include "./src/connector/kvs/cassprotocol.h++"
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -76,6 +79,17 @@ namespace tcp_proxy {
     {
         if (!error)
         {
+            int n;
+            if(upstream_data_[0] == 0x84) { //is cassandra response version
+                n = (int)upstream_data_[5] << 24;
+                n += (int)upstream_data_[6] << 16;
+                n += (int)upstream_data_[7] << 8;
+                n += (int)upstream_data_[8];
+
+            } else {
+                n = bytes_transferred;
+            }
+
             async_write(downstream_socket_,
                         boost::asio::buffer(upstream_data_,bytes_transferred),
                         boost::bind(&bridge::handle_downstream_write,
@@ -101,33 +115,68 @@ namespace tcp_proxy {
             close();
     }
 
+    template <class C>
+    void print(const C& c, std::ostream& os = std::cout)
+    {
+        std::for_each(std::begin(c), std::end(c), [&os](typename C::value_type p) { os << '{' << p.first << ',' << &p.second << "}, "; });
+        os << std::endl;
+    }
+
     void bridge::handle_downstream_read(const boost::system::error_code& error,
                                 const size_t& bytes_transferred)
     {
+
         if (!error)
         {
-//            std::cout << "raw_socket::::";
-//            for (int i = 0; i < max_data_length; ++i) {
-//                std::cout << downstream_data_[i];
-//            }
-//            std::cout << std::endl;
+//                async_write(upstream_socket_,
+//                            boost::asio::buffer(downstream_data_,bytes_transferred),
+//                            boost::bind(&bridge::handle_upstream_write,
+//                                        shared_from_this(),
+//                                        boost::asio::placeholders::error));
+//
+            // ヘッダ情報の読み込み
+            int n;
+            if(downstream_data_[0] == 0x04 && downstream_data_[4] == cassprotocol::opcode::QUERY) { //is cassandra request version
+//                std::cout << "cql detected" << std::endl;
+                n = (int)downstream_data_[5] << 24;
+                n += (int)downstream_data_[6] << 16;
+                n += (int)downstream_data_[7] << 8;
+                n += (int)downstream_data_[8];
+                std::cout << "size" << n << std::endl;
+                if (n != 0) {
+                    std::cout << "raw_request in pre bridge" << std::endl;
+                    debug::hexdump(reinterpret_cast<const char *>(&downstream_data_[0]), n + 9); // ヘッダ含む
+                    transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1", shared_from_this()))};
+                    const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), n + 14));
 
-            // lockが発火していない
-            transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1"))};
-            const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
-                    reinterpret_cast<const char *>(downstream_data_), bytes_transferred));
-//            const transaction::Request req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(
-//                    "select * from system.local;"));
+                    std::cout << "raw_request in aft bridge downstream" << std::endl;
+                    debug::hexdump(reinterpret_cast<const char *>(&downstream_data_[0]), n + 9);
 
+                    std::cout << "raw_request in aft bridge: " << std::endl; // ここがおかしい
+                    debug::hexdump(req.raw_request().data(), req.raw_request().size());
+                    // レイヤー移動
+                    const auto &res = lock(req);
+                }
+                // TODO 再接続要求が返されないかも
+
+            } else {
+                // kc層に以降
+                async_write(upstream_socket_,
+                            boost::asio::buffer(downstream_data_,bytes_transferred),
+                            boost::bind(&bridge::handle_upstream_write,
+                                        shared_from_this(),
+                                        boost::asio::placeholders::error));
+            }
+
+//            debug::hexdump(downstream_data_, downstream_query_size);
+//            std::cout << "data_size_by_cassandra_protocol:" << ((int)downstream_data_[8])  << std::endl;
             // 初期化はできる
-            lock(req);
-
-            // kc層に以降 bridgeを渡せばええんかな？
-            async_write(upstream_socket_,
-                        boost::asio::buffer(downstream_data_,bytes_transferred),
-                        boost::bind(&bridge::handle_upstream_write,
-                                    shared_from_this(),
-                                    boost::asio::placeholders::error));
+//            const auto &res = lock(req);
+//            for (const auto &one_res : res) {
+//                std:: cout << "response" << std::endl;
+//                for (const auto &row: one_res.data())
+//                    print(row);
+//            }
         }
         else
             close();
@@ -137,6 +186,7 @@ namespace tcp_proxy {
     {
         if (!error)
         {
+            std::cout << "handle upstream write" << std::endl;
             downstream_socket_.async_read_some(
                     boost::asio::buffer(downstream_data_,max_data_length),
                     boost::bind(&bridge::handle_downstream_read,
@@ -162,4 +212,5 @@ namespace tcp_proxy {
             upstream_socket_.close();
         }
     }
+
 }// namespace tcp_proxy

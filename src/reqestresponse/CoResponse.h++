@@ -19,7 +19,7 @@
 
 namespace transaction {
 
-    using Row = std::unordered_map<std::string, RowData>;
+    using Row = std::unordered_map<std::string, RowData>; // row_name , data
 
     // TODO Peer.hppで定義されてるからいらないかも
     enum class Status {
@@ -46,6 +46,26 @@ namespace transaction {
         [[nodiscard]] Status status() const noexcept { return _status; }
 
         [[nodiscard]] const std::vector<Row> &data() const { return _data; }
+    };
+
+    class RawResponse {
+    private:
+        Status _status;
+        std::string_view _data;
+
+    public:
+        RawResponse() = default;
+
+        RawResponse(Status status, std::string_view raw_response)
+        : _status(status), _data(raw_response) {}
+
+        explicit RawResponse(Status status)
+        : RawResponse(status, {}) {}
+
+    public:
+        [[nodiscard]] Status status() const noexcept { return _status; }
+
+        [[nodiscard]] const std::string_view &data() const { return _data; }
     };
 
     using Response = std::vector<CoResponse>;

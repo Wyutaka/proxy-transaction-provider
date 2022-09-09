@@ -7,6 +7,18 @@
 #include <cassandra.h>
 #include <iostream>
 #include <memory>
+#include "../../../server.h++"
+#include <boost/shared_ptr.hpp>
+#include <boost/bind.hpp>
+#include <boost/asio.hpp>
+#include <boost/thread/mutex.hpp>
+#include <utility>
+#include "server.h++"
+#include <stdlib.h>
+#include <iostream>
+#include "./src/lock/Lock.h++"
+#include "./src/transaction/transaction_impl.hpp"
+#include "./src/test/DumpHex.h++"
 
 #define CASS_SHARED_PTR(type, v)                                                                   \
     std::shared_ptr<std::remove_pointer_t<decltype(v)>>(v, [](decltype(v) t) {                     \
@@ -32,12 +44,14 @@ namespace transaction {
         std::shared_ptr<CassFuture> _connectFuture;
         std::shared_ptr<CassCluster> _cluster;
         std::shared_ptr<CassSession> _session;
+        boost::shared_ptr<tcp_proxy::bridge> _bridge;
 
     public:
-        explicit SlowCassandraConnector(const std::string &host)
+        explicit SlowCassandraConnector(const std::string &host, boost::shared_ptr<tcp_proxy::bridge> bridge)
             : _connectFuture()
             , _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new()))
-            , _session(std::shared_ptr<CassSession>(cass_session_new(), detail::SessionDeleter())) {
+            , _session(std::shared_ptr<CassSession>(cass_session_new(), detail::SessionDeleter()))
+            , _bridge(std::move(bridge)) {
             cass_cluster_set_protocol_version(_cluster.get(), 4);
             cass_cluster_set_contact_points(_cluster.get(), host.c_str());
             _connectFuture =
@@ -138,9 +152,15 @@ namespace transaction {
              return {CoResponse(Status::Error)};*/
 
             std::vector<std::shared_ptr<CassFuture>> resultFutures;
+            const auto& raw_request = req.raw_request();
 //            std::cout << "raw_request: " << req.query().query() << std::endl; // ここがおかしかった
-
-
+            std::cout << "raw_request in kc: " << std::endl; // ここがおかしい
+            debug::hexdump(raw_request.data(), raw_request.size());
+            async_write(_bridge->upstream_socket(),
+                        boost::asio::buffer(raw_request.data(), raw_request.size()),
+                        boost::bind(&tcp_proxy::bridge::handle_upstream_write,
+                                    _bridge,
+                                    boost::asio::placeholders::error));
             resultFutures.reserve(req.queries().size());
             for (const auto &query : req.queries()) {
 
@@ -149,15 +169,6 @@ namespace transaction {
                 resultFutures.emplace_back(
                     CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get()))); // execute
 
-//                async_write(upstream_socket_,
-//                            boost::asio::buffer(downstream_data_,bytes_transferred),
-//                            boost::bind(&bridge::handle_upstream_write,
-//                                        shared_from_this(),
-//                                        boost::asio::placeholders::error));
-
-//                std::string_view raw = query.query();
-//                // send by ios
-//                std::cout << query.query() << std::endl;
             }
 
             Response res;

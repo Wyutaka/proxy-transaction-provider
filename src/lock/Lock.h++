@@ -29,12 +29,8 @@ namespace transaction::lock {
                 using pipes::operator|;
             // const auto query = req.query() | tolower;
 
-//                std::cout <<  "req.query()" << (int)req.query().type() << std::endl;
-//                std::printf("req.query().type:%d\n", (int)req.query().type());
-//
-//                std::cout << req.query().query().data() << std::endl;
-//                �����stem.local;
-//                std::cout <<  "req.query() in lock :" << req.query().query() << std::endl; // 値が取れていない
+                std::cout << "raw_request in lock: " << std::endl; // ここがおかしい
+                debug::hexdump(req.raw_request().data(), req.raw_request().size());
 
                 if (req.query().isBegin()) {
                 if (!_getLock(req.peer())) {

@@ -26,7 +26,7 @@ namespace transaction {
 
     public:
         Query() = default;
-        explicit Query(const std::string_view &sv)
+        explicit Query(const std::string_view sv)
                 : _query(std::string(sv))
                 , _type(GetType(sv)) {
 //                        std::cout << "req.query():" << _query << std::endl; // ここはok

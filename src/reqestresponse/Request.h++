@@ -17,7 +17,7 @@
 #include <any>
 #include "src/test/search.h++"
 #include <regex>
-
+#include "../test/DumpHex.h++"
 
 namespace transaction {
     using PeerV4 = BasicPeer<std::string>;
@@ -27,23 +27,23 @@ namespace transaction {
     private:
         std::vector<Query> _queries;
         Peer _peer;
+        std::string _raw_request;
 
     public:
-        explicit Request(Peer p, std::vector<Query> queries)
+        explicit Request(Peer p, std::vector<Query> queries, std::string_view raw_request)
                 : _queries(std::move(queries))
-                , _peer(std::move(p)) {
-//            std::cout << "query.size()" << _queries.size() << std::endl;
-//            std::cout << "req.query() is : " << _queries[0].query() << std::endl; // ここはOK
+                , _peer(std::move(p))
+                , _raw_request(raw_request) {
+//            std::cout << "raw_request in req req: " << std::endl; // ここはいける
+//            debug::hexdump(_raw_request.data(), _raw_request.size());
         }
-        Request(Peer p, Query query)
-                : Request(std::move(p), std::vector<Query>{query}) {
+        Request(Peer p, Query query, std::string_view raw_request)
+                : Request(std::move(p), std::vector<Query>{query}, raw_request) {
         }
 
-        Request(Peer p, std::string_view query)
-                : Request(std::move(p), Query(custom_search::query_itr(query))) { // dataで渡すと動くう
-            std::cout << "raw_request: " << query << std::endl; // ここはいける
-
-            std::cout << "trimed :"  << custom_search::query_itr(query) << std::endl;
+        Request(Peer p, std::string_view query_body, std::string_view raw_request)
+                : Request(std::move(p), Query(query_body), raw_request)
+                { // dataで渡すと動くう
         }
 
     public:
@@ -58,9 +58,11 @@ namespace transaction {
         [[nodiscard]] const Query &query() const {
             // 正しい値が遅れない
 //            std::cout << "query.size()" << _queries.size() << std::endl;
-//            std::cout << "req.query()" << _queries[0].query() << std::endl;
+//            std::cout << "in Request req.query()" << _queries[0].query() << std::endl;
 
             return _queries[0]; }
+        [[nodiscard]] std::string raw_request() const {
+            return _raw_request; }
         [[nodiscard]] const Peer &peer() const { return _peer; }
     };
 }
