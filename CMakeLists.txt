@@ -34,7 +34,13 @@ add_executable(tcpproxy_server
         src/test/search.h++
         src/test/DumpHex.h++)
 
+add_executable(client
+        src/test/client.cpp
+)
+
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
+include_directories(client ${CONAN_INCLUDE_DIRS})
+
 target_link_libraries(tcpproxy_server Boost::boost)
 target_link_libraries(tcpproxy_server stdc++ pthread)
 message(STATUS "archtecture is ${CMAKE_SYSTEM_PROCESSOR}")
@@ -49,5 +55,7 @@ ENDIF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
 
 target_link_libraries(tcpproxy_server ${CONAN_LIBS})
 target_link_libraries(tcpproxy_server sqlite3)
+target_link_libraries(client ${CONAN_LIBS})
+
 #target_link_libraries(tcpproxy_server transaction)
 

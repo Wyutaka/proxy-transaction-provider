@@ -90,6 +90,9 @@ namespace tcp_proxy {
                 n = bytes_transferred;
             }
 
+//            std::cout << "handle upstream_read" << std::endl;
+//            debug::hexdump(reinterpret_cast<const char *>(upstream_data_), bytes_transferred);
+
             async_write(downstream_socket_,
                         boost::asio::buffer(upstream_data_,bytes_transferred),
                         boost::bind(&bridge::handle_downstream_write,
@@ -125,42 +128,46 @@ namespace tcp_proxy {
     void bridge::handle_downstream_read(const boost::system::error_code& error,
                                 const size_t& bytes_transferred)
     {
-
         if (!error)
         {
-//                async_write(upstream_socket_,
-//                            boost::asio::buffer(downstream_data_,bytes_transferred),
-//                            boost::bind(&bridge::handle_upstream_write,
-//                                        shared_from_this(),
-//                                        boost::asio::placeholders::error));
-//
+//            std::cout << "handle downstream_read" << std::endl;
+//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), 200);
+
             // ヘッダ情報の読み込み
             int n;
+
+            std::cout << "downstream_data_size" << bytes_transferred << std::endl;
             if(downstream_data_[0] == 0x04 && downstream_data_[4] == cassprotocol::opcode::QUERY) { //is cassandra request version
 //                std::cout << "cql detected" << std::endl;
                 n = (int)downstream_data_[5] << 24;
                 n += (int)downstream_data_[6] << 16;
                 n += (int)downstream_data_[7] << 8;
                 n += (int)downstream_data_[8];
-                std::cout << "size" << n << std::endl;
+                std::cout << "one query size" << n << std::endl;
                 if (n != 0) {
-                    std::cout << "raw_request in pre bridge" << std::endl;
-                    debug::hexdump(reinterpret_cast<const char *>(&downstream_data_[0]), n + 9); // ヘッダ含む
+
                     transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1", shared_from_this()))};
-                    const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), n + 14));
+                    // 13~bodyまで切り取り
+                    const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred));
 
-                    std::cout << "raw_request in aft bridge downstream" << std::endl;
-                    debug::hexdump(reinterpret_cast<const char *>(&downstream_data_[0]), n + 9);
-
-                    std::cout << "raw_request in aft bridge: " << std::endl; // ここがおかしい
-                    debug::hexdump(req.raw_request().data(), req.raw_request().size());
                     // レイヤー移動
                     const auto &res = lock(req);
+
+//                    std::cout << "downstream_data" << std::endl;
+//                    debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred);
+//                    std::cout << "raw_request" << std::endl;
+//                    debug::hexdump(req.raw_request().data(), req.raw_request().size());
+
+//                    async_write(upstream_socket_,
+//                                boost::asio::buffer(req.raw_request().data(),req.raw_request().size()),
+//                                boost::bind(&bridge::handle_upstream_write,
+//                                            shared_from_this(),
+//                                            boost::asio::placeholders::error));
+
                 }
                 // TODO 再接続要求が返されないかも
 
             } else {
-                // kc層に以降
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_,bytes_transferred),
                             boost::bind(&bridge::handle_upstream_write,
@@ -168,19 +175,14 @@ namespace tcp_proxy {
                                         boost::asio::placeholders::error));
             }
 
-//            debug::hexdump(downstream_data_, downstream_query_size);
-//            std::cout << "data_size_by_cassandra_protocol:" << ((int)downstream_data_[8])  << std::endl;
-            // 初期化はできる
-//            const auto &res = lock(req);
-//            for (const auto &one_res : res) {
-//                std:: cout << "response" << std::endl;
-//                for (const auto &row: one_res.data())
-//                    print(row);
-//            }
         }
-        else
+        else {
+            std::cout << "handle downstream_read errr" << std::endl; // <- misc:2
+            std::cout << error <<std::endl;
             close();
+        }
     }
+
 
     void bridge::handle_upstream_write(const boost::system::error_code& error)
     {

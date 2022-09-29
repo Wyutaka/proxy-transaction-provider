@@ -29,9 +29,6 @@ namespace transaction::lock {
                 using pipes::operator|;
             // const auto query = req.query() | tolower;
 
-                std::cout << "raw_request in lock: " << std::endl; // ここがおかしい
-                debug::hexdump(req.raw_request().data(), req.raw_request().size());
-
                 if (req.query().isBegin()) {
                 if (!_getLock(req.peer())) {
                     return Response({CoResponse(Status::Error)});

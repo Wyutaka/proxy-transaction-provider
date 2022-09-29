@@ -40,7 +40,7 @@ namespace tcp_proxy {
         void handle_downstream_write(const boost::system::error_code& error);
         socket_type downstream_socket_;
 
-        enum { max_data_length = 8192 }; //8KB
+        enum { max_data_length = 8192 * 2 }; //16KB
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;

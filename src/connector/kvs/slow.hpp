@@ -27,47 +27,21 @@
     })
 
 namespace transaction {
-    namespace detail {
-        struct SessionDeleter {
-            void operator()(CassSession *s) const noexcept {
-                {
-                    auto close_future = CASS_SHARED_PTR(future, cass_session_close(s));
-                    cass_future_wait(close_future.get());
-                }
-                cass_session_free(s);
-            }
-        };
-    } // namespace detail
 
     class SlowCassandraConnector {
     private:
-        std::shared_ptr<CassFuture> _connectFuture;
-        std::shared_ptr<CassCluster> _cluster;
-        std::shared_ptr<CassSession> _session;
         boost::shared_ptr<tcp_proxy::bridge> _bridge;
 
     public:
         explicit SlowCassandraConnector(const std::string &host, boost::shared_ptr<tcp_proxy::bridge> bridge)
-            : _connectFuture()
-            , _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new()))
-            , _session(std::shared_ptr<CassSession>(cass_session_new(), detail::SessionDeleter()))
-            , _bridge(std::move(bridge)) {
-            cass_cluster_set_protocol_version(_cluster.get(), 4);
-            cass_cluster_set_contact_points(_cluster.get(), host.c_str());
-            _connectFuture =
-                CASS_SHARED_PTR(future, cass_session_connect(_session.get(), _cluster.get()));
-
-            if (cass_future_error_code(_connectFuture.get()) != CASS_OK) {
-                std::cerr << "cannot connect to Cassandra" << std::endl;
-                std::terminate();
-            }
-        }
+            // moveじゃなくない？
+            : _bridge(bridge) { }
 
         ~SlowCassandraConnector() {
             // cass_session_close(_session);
-            _connectFuture.reset();
-            _session.reset();
-            _cluster.reset();
+//            _connectFuture.reset();
+//            _session.reset();
+//            _cluster.reset();
         }
 
     private:
@@ -151,78 +125,82 @@ namespace transaction {
              }
              return {CoResponse(Status::Error)};*/
 
-            std::vector<std::shared_ptr<CassFuture>> resultFutures;
+//            std::vector<std::shared_ptr<CassFuture>> resultFutures;
             const auto& raw_request = req.raw_request();
-//            std::cout << "raw_request: " << req.query().query() << std::endl; // ここがおかしかった
-            std::cout << "raw_request in kc: " << std::endl; // ここがおかしい
+            std::cout << "raw_request: " << req.query().query() << std::endl; // ここがおかしかった
+//          boost asio
+//            std::cout << "transaction" << std::endl;
             debug::hexdump(raw_request.data(), raw_request.size());
-            async_write(_bridge->upstream_socket(),
+
+            async_write(_bridge->upstream_socket_,
                         boost::asio::buffer(raw_request.data(), raw_request.size()),
                         boost::bind(&tcp_proxy::bridge::handle_upstream_write,
                                     _bridge,
                                     boost::asio::placeholders::error));
-            resultFutures.reserve(req.queries().size());
-            for (const auto &query : req.queries()) {
 
-                auto statement = CASS_SHARED_PTR(
-                    statement, cass_statement_new_n(query.query().data(), query.query().size(), 0));
-                resultFutures.emplace_back(
-                    CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get()))); // execute
 
-            }
+//            resultFutures.reserve(req.queries().size());
+//            for (const auto &query : req.queries()) {
+//
+//                auto statement = CASS_SHARED_PTR(
+//                    statement, cass_statement_new_n(query.query().data(), query.query().size(), 0));
+//                resultFutures.emplace_back(
+//                    CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get()))); // execute
+//
+//            }
 
             Response res;
-            res.reserve(req.queries().size());
-
-            for (auto &future_ : resultFutures) {
-                auto future = future_.get();
-
-                auto errorCode = cass_future_error_code(future);
-                if (errorCode != CASS_OK) {
-                    std::cerr << errorCode << " error!!! " << cass_error_desc(errorCode) << std::endl;
-                    /*if (auto errorResult =
-                            CASS_SHARED_PTR(error_result, cass_future_get_error_result(future));
-                        errorResult) {
-                    }*/
-                    res.emplace_back(Status::Error);
-                    continue;
-                }
-                auto result = CASS_SHARED_PTR(result, cass_future_get_result(future));
-                if (!result) {
-                    std::cerr << "get result failed" << std::endl;
-                    res.emplace_back(Status::Error);
-                    continue;
-                }
-
-                auto columnCount = cass_result_column_count(result.get());
-                if (columnCount == 0) {
-                    res.emplace_back(Status::Ok);
-                    continue;
-                }
-                auto iterator = CASS_SHARED_PTR(iterator, cass_iterator_from_result(result.get()));
-
-                std::vector<std::string> columnNames;
-                for (std::size_t cn = 0; cn < columnCount; ++cn) {
-                    std::size_t length = 0;
-                    const char *nbp = nullptr;
-                    cass_result_column_name(result.get(), cn, &nbp, &length);
-
-                    columnNames.emplace_back(std::string(nbp, nbp + length));
-                }
-
-                std::vector<Row> rows;
-                while (cass_iterator_next(iterator.get())) {
-                    Row resRow;
-                    auto row = cass_iterator_get_row(iterator.get());
-                    for (std::size_t i = 0; i < columnNames.size(); ++i) {
-                        auto value = cass_row_get_column(row, i);
-                        resRow[columnNames[i]] = _toRowData(value);
-                    }
-                    rows.emplace_back(resRow);
-                }
-
-                res.emplace_back(Status::Result, rows);
-            }
+//            res.reserve(req.queries().size());
+//
+//            for (auto &future_ : resultFutures) {
+//                auto future = future_.get();
+//
+//                auto errorCode = cass_future_error_code(future);
+//                if (errorCode != CASS_OK) {
+//                    std::cerr << errorCode << " error!!! " << cass_error_desc(errorCode) << std::endl;
+//                    /*if (auto errorResult =
+//                            CASS_SHARED_PTR(error_result, cass_future_get_error_result(future));
+//                        errorResult) {
+//                    }*/
+//                    res.emplace_back(Status::Error);
+//                    continue;
+//                }
+//                auto result = CASS_SHARED_PTR(result, cass_future_get_result(future));
+//                if (!result) {
+//                    std::cerr << "get result failed" << std::endl;
+//                    res.emplace_back(Status::Error);
+//                    continue;
+//                }
+//
+//                auto columnCount = cass_result_column_count(result.get());
+//                if (columnCount == 0) {
+//                    res.emplace_back(Status::Ok);
+//                    continue;
+//                }
+//                auto iterator = CASS_SHARED_PTR(iterator, cass_iterator_from_result(result.get()));
+//
+//                std::vector<std::string> columnNames;
+//                for (std::size_t cn = 0; cn < columnCount; ++cn) {
+//                    std::size_t length = 0;
+//                    const char *nbp = nullptr;
+//                    cass_result_column_name(result.get(), cn, &nbp, &length);
+//
+//                    columnNames.emplace_back(std::string(nbp, nbp + length));
+//                }
+//
+//                std::vector<Row> rows;
+//                while (cass_iterator_next(iterator.get())) {
+//                    Row resRow;
+//                    auto row = cass_iterator_get_row(iterator.get());
+//                    for (std::size_t i = 0; i < columnNames.size(); ++i) {
+//                        auto value = cass_row_get_column(row, i);
+//                        resRow[columnNames[i]] = _toRowData(value);
+//                    }
+//                    rows.emplace_back(resRow);
+//                }
+//
+//                res.emplace_back(Status::Result, rows);
+//            }
 
             return res;
         }

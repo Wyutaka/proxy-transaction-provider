@@ -77,8 +77,6 @@ namespace transaction {
 
         Response operator()(Request req) {
             const auto &query = req.query();
-            std::cout << "raw_request in transaction: " << std::endl; // ここがおかしい
-            debug::hexdump(req.raw_request().data(), req.raw_request().size());
 
             switch (query.type()) {
                 case Query::Type::Begin:
