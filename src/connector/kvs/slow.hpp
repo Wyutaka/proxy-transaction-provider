@@ -118,20 +118,13 @@ namespace transaction {
 
     public:
         // ここをプロキシ(bridge)に置き換える
-        Response operator()(const Request &req) { /*
-             for (const auto &q : req.queries()) {
-                 std::cout << q << std::endl;
-                 test(q);
-             }
-             return {CoResponse(Status::Error)};*/
-
-//            std::vector<std::shared_ptr<CassFuture>> resultFutures;
+        Response operator()(const Request &req) {
             const auto& raw_request = req.raw_request();
-            std::cout << "raw_request: " << req.query().query() << std::endl; // ここがおかしかった
-//          boost asio
+            std::cout << "raw_request: " << req.query().query() << std::endl;
 //            std::cout << "transaction" << std::endl;
-            debug::hexdump(raw_request.data(), raw_request.size());
+//            debug::hexdump(raw_request.data(), raw_request.size());
 
+            // サーバーに送信
             async_write(_bridge->upstream_socket_,
                         boost::asio::buffer(raw_request.data(), raw_request.size()),
                         boost::bind(&tcp_proxy::bridge::handle_upstream_write,
@@ -146,12 +139,11 @@ namespace transaction {
 //                    statement, cass_statement_new_n(query.query().data(), query.query().size(), 0));
 //                resultFutures.emplace_back(
 //                    CASS_SHARED_PTR(future, cass_session_execute(_session.get(), statement.get()))); // execute
-//
 //            }
 
-            Response res;
-//            res.reserve(req.queries().size());
-//
+            Response res = Response({CoResponse(Status::Pending)});
+            // todo クエリ,成功ごとにレスポンスを分ける(Ok, result,pending)
+//            res.reserve(req.queries().size()); // responseのサイズ変更通知
 //            for (auto &future_ : resultFutures) {
 //                auto future = future_.get();
 //

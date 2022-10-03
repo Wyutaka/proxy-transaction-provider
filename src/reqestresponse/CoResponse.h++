@@ -26,6 +26,7 @@ namespace transaction {
         Error = 0,
         Ok,
         Result,
+        Pending // 非同期にバックエンドに送信中
     };
 
     class CoResponse {
@@ -44,6 +45,10 @@ namespace transaction {
 
     public:
         [[nodiscard]] Status status() const noexcept { return _status; }
+
+        void set_status(Status status) {
+            _status = status;
+        }
 
         [[nodiscard]] const std::vector<Row> &data() const { return _data; }
     };

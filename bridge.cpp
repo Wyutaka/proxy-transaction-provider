@@ -13,6 +13,7 @@
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
 #include "./src/connector/kvs/cassprotocol.h++"
+#include "./src/reqestresponse/Constants.h++"
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -130,8 +131,8 @@ namespace tcp_proxy {
     {
         if (!error)
         {
-//            std::cout << "handle downstream_read" << std::endl;
-//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), 200);
+            std::cout << "handle downstream_read" << std::endl;
+            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
 
             // ヘッダ情報の読み込み
             int n;
@@ -143,7 +144,7 @@ namespace tcp_proxy {
                 n += (int)downstream_data_[6] << 16;
                 n += (int)downstream_data_[7] << 8;
                 n += (int)downstream_data_[8];
-                std::cout << "one query size" << n << std::endl;
+//                std::cout << "one query size" << n << std::endl;
                 if (n != 0) {
 
                     transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1", shared_from_this()))};
@@ -151,21 +152,35 @@ namespace tcp_proxy {
                     const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred));
 
                     // レイヤー移動
-                    const auto &res = lock(req);
+                    const auto& res = lock(req);
 
-//                    std::cout << "downstream_data" << std::endl;
-//                    debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred);
-//                    std::cout << "raw_request" << std::endl;
-//                    debug::hexdump(req.raw_request().data(), req.raw_request().size());
+                    if (res.begin()->status() == transaction::Status::Ok) {// レスポンスでOKが帰って来たとき(begin,commitを想定)
+                        std::cout << "status ok" << std::endl;
+                        // クエリに対するリクエストを返す
+                        // ヘッダ + レスポンスボディ
+                        // 原型生成
+                        unsigned char result_ok[13] =  {0x84, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x04,0x00, 0x00, 0x00, 0x01};
+//                        memcpy(&result_ok[2], &downstream_data_[2], 2);
+                        result_ok[2] = downstream_data_[2];
+                        result_ok[3] = downstream_data_[3];
+//                        debug::hexdump(result_ok, 4);
+//                        std::cout << result_ok[0] << std::endl;
+                        // streamIdコピー
+                        async_write(downstream_socket_,
+                                    boost::asio::buffer(result_ok,13), // result_okの文字列長
+                                    boost::bind(&bridge::handle_downstream_write,
+                                                shared_from_this(),
+                                                boost::asio::placeholders::error));
 
-//                    async_write(upstream_socket_,
-//                                boost::asio::buffer(req.raw_request().data(),req.raw_request().size()),
-//                                boost::bind(&bridge::handle_upstream_write,
-//                                            shared_from_this(),
-//                                            boost::asio::placeholders::error));
-
+                        // Setup async read from client (downstream)
+                        downstream_socket_.async_read_some(
+                                boost::asio::buffer(downstream_data_,max_data_length),
+                                boost::bind(&bridge::handle_downstream_read,
+                                            shared_from_this(),
+                                            boost::asio::placeholders::error,
+                                            boost::asio::placeholders::bytes_transferred));
+                    }
                 }
-                // TODO 再接続要求が返されないかも
 
             } else {
                 async_write(upstream_socket_,
@@ -177,8 +192,6 @@ namespace tcp_proxy {
 
         }
         else {
-            std::cout << "handle downstream_read errr" << std::endl; // <- misc:2
-            std::cout << error <<std::endl;
             close();
         }
     }

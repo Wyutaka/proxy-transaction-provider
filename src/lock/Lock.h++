@@ -32,14 +32,17 @@ namespace transaction::lock {
                 if (req.query().isBegin()) {
                 if (!_getLock(req.peer())) {
                     return Response({CoResponse(Status::Error)});
+                } else {
+                    std::cout << "lock successed!!!!!!!!" << std::endl;
+                    return Response({CoResponse(Status::Ok)});
                 }
             } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
                 if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
                     return Response({CoResponse(Status::Error)});
                 }
-                    auto res = _next(req);
+//                    auto res = _next(req);
                 _lock.clear();
-                return res;
+                    return Response({CoResponse(Status::Ok)});
             } else if (_lock.test()) {
 
                     Sl sl(*_mutex);

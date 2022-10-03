@@ -76,7 +76,7 @@ namespace transaction {
 
                 case 'i':
                 case 'I':
-                    return (query.back() == ')') ? Query::Type::Insert : Query::Type::InsertIfNotExists;
+                    return Query::Type::Insert;
 
                 case 's':
                 case 'S':

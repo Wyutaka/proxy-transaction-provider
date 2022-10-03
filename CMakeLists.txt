@@ -28,6 +28,7 @@ add_executable(tcpproxy_server
         src/lock/detail.h++ src/lock/Lock.h++
         src/peer/Peer.hpp
         src/reqestresponse/Request.h++ src/reqestresponse/RowData.h++ src/reqestresponse/CoResponse.h++ src/transaction/transaction_impl.hpp src/transaction/sqlite3.hpp
+        src/reqestresponse/Constants.h++
         src/transaction/State.h++ src/transaction/through.hpp
         acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++
         src/lock/shared_mutex.h++ src/test/search.h++

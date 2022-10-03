@@ -42,9 +42,7 @@ namespace transaction {
         }
 
         Request(Peer p, std::string_view query_body, std::string_view raw_request)
-                : Request(std::move(p), Query(query_body), raw_request)
-                { // dataで渡すと動くう
-        }
+                : Request(std::move(p), Query(query_body), raw_request) {}
 
     public:
         [[nodiscard]] auto begin() { return std::begin(_queries); }
