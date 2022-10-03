@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
    const std::string forward_host    = argv[3];
 
     boost::thread_group threads;
-    for (int i = 0; i < num_threads; i++) {
+    for (int i = 0; i < 1; i++) {
         threads.create_thread([local_port, forward_port, local_host, forward_host] { return run_proxy(local_port, forward_port, local_host, forward_host); });
         local_port++;
     }
