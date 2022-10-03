@@ -3,6 +3,12 @@
 ./tcpproxy_server 127.0.0.1 5000 127.0.0.1 9042
 ```
 
+#### how to build 
+- install conan https://docs.conan.io/en/latest/installation.html
+- add pip executable to PATH `export PATH=$PATH:/home/your_user_name/.local/bin`
+- at project root `$mkdir build && cd build`
+- `$conan install .. && cmake .. && make`
+
 #### Description
 The C++ TCP Proxy server is a simple utility using the ASIO networking library,
 for proxying (tunneling or redirecting) connections from external clients to a
