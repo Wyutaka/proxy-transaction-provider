@@ -1,5 +1,7 @@
 [requires]
 cassandra-cpp-driver/2.15.3
+boost/1.71.0
+sqlite3/3.39.0
 
 [generators]
 cmake
