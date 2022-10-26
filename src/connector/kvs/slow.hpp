@@ -1,6 +1,4 @@
 
-// TODO DON'T USE!!
-
 #pragma once
 
 #include "../../../kvs.h++"
@@ -28,17 +26,44 @@
 
 namespace transaction {
 
+    namespace detail {
+        struct SessionDeleter {
+            void operator()(CassSession *s) const noexcept {
+                {
+                    auto close_future = CASS_SHARED_PTR(future, cass_session_close(s));
+                    cass_future_wait(close_future.get());
+                }
+                cass_session_free(s);
+            }
+        };
+    } // namespace detail
+
     class SlowCassandraConnector {
     private:
         boost::shared_ptr<tcp_proxy::bridge> _bridge;
+        std::shared_ptr<CassFuture> _connectFuture;
+        std::shared_ptr<CassCluster> _cluster;
+        std::shared_ptr<CassSession> _session;
 
     public:
         explicit SlowCassandraConnector(const std::string &host, boost::shared_ptr<tcp_proxy::bridge> bridge)
             // moveじゃなくない？
-            : _bridge(bridge) { }
+            : _connectFuture()
+            , _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new()))
+            , _session(std::shared_ptr<CassSession>(cass_session_new(), detail::SessionDeleter()))
+            , _bridge(bridge) {
+            cass_cluster_set_contact_points(_cluster.get(), host.c_str());
+            _connectFuture =
+                    CASS_SHARED_PTR(future, cass_session_connect(_session.get(), _cluster.get()));
+
+            if (cass_future_error_code(_connectFuture.get()) != CASS_OK) {
+                std::cerr << "cannot connect to Cassandra" << std::endl;
+                std::terminate();
+            }
+
+        }
 
         ~SlowCassandraConnector() {
-            // cass_session_close(_session);
 //            _connectFuture.reset();
 //            _session.reset();
 //            _cluster.reset();

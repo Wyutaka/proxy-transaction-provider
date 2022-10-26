@@ -23,7 +23,7 @@ add_executable(tcpproxy_server
         query.h++
         supports.hpp
         transaction_provider.h++
-        src/connector/kvs/slow.hpp
+        src/connector/kvs/slow.hpp src/connector/kvs/slow_postgres.h++
         src/journal/mmap_journal.hpp
         src/lock/detail.h++ src/lock/Lock.h++
         src/peer/Peer.hpp

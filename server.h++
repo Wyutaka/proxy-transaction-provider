@@ -8,6 +8,7 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
+#include <cassandra.h>
 
 namespace tcp_proxy {
     namespace ip = boost::asio::ip;
@@ -46,6 +47,9 @@ namespace tcp_proxy {
         boost::mutex mutex_;
         unsigned short upstream_port_;
         std::string upstream_host_;
+        std::shared_ptr<CassFuture> _connectFuture;
+        std::shared_ptr<CassCluster> _cluster;
+        std::shared_ptr<CassSession> _session;
 
     // inner class
     public:
