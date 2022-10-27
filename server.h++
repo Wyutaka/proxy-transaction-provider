@@ -45,6 +45,7 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;
+        static constexpr char* backend_host = "127.0.0.1";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;

@@ -131,13 +131,10 @@ namespace transaction {
 //            resultFutures.reserve(req.queries().size());                // クエリサイズ分予約
             resultFutures.reserve(req.query().query().size());                // クエリサイズ分予約
 //            for (const auto &query : req.queries()) {                   // クエリの数だけ(req.queriesが正しく値が取れていないせつ)
+            debug::hexdump(reinterpret_cast<const char *>(req.query().query().data()), req.query().query().size()); // 下流バッファバッファ16進表示
+            CassStatement* statement = cass_statement_new(req.query().query().data(), 0); // statement, cass_statement_new_n(const char * query, size_t query_length, size_t parameter_count)
 
-            auto statement = CASS_SHARED_PTR(                       // CASS_SHAERED_PTR(this,CassStatement)
-                    statement, cass_statement_new_n(req.query().query().data(), req.query().query().size(),
-                                                    0)); // statement, cass_statement_new_n(const char * query, size_t query_length, size_t parameter_count)
-            resultFutures.emplace_back(                             // 新しい要素を末尾に追加
-                    CASS_SHARED_PTR(future,
-                                    cass_session_execute(_session.get(), statement.get())));    // クエリまたはバインドステートメントを実行
+            auto result_future = cass_session_execute(_session.get(), statement);
 //            }
             Response res;                                               // response
 //            res.reserve(req.queries().size());                          // クエリの数分responseの要素を予約

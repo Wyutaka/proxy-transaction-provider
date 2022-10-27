@@ -50,8 +50,8 @@ namespace transaction::lock {
                     return Response({CoResponse(Status::Error)});
                 }
             }
-            return Response({CoResponse(Status::Ok)});
-//            return _next(req);
+//            return Response({CoResponse(Status::Ok)});
+            return _next(req);
             }
 
 

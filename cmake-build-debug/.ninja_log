@@ -1,17 +1,11 @@
 # ninja log v5
-12356	12954	1666319580581015548	bin/tcpproxy_server	64cca848fea1dcd0
-4	12356	1666319579973024103	CMakeFiles/tcpproxy_server.dir/bridge.cpp.o	9d533ead5486979a
-0	26	1666325892657179494	build.ninja	1b3822b21aecad7f
+11286	11868	1666576296897670452	bin/tcpproxy_server	64cca848fea1dcd0
+4	11286	1666576296305676258	CMakeFiles/tcpproxy_server.dir/bridge.cpp.o	9d533ead5486979a
+0	26	1666850623281286486	build.ninja	1b3822b21aecad7f
 42	403	1664503381428393040	bin/client	670da2ef9183ff8c
-3	5719	1666164617678145775	CMakeFiles/tcpproxy_server.dir/tcpproxy_server.cpp.o	e6523d07fbcb892c
-4	4408	1666164616370178389	CMakeFiles/tcpproxy_server.dir/acceptor.cpp.o	5ad87361b6a62963
+3	5578	1666326589143006992	CMakeFiles/tcpproxy_server.dir/tcpproxy_server.cpp.o	e6523d07fbcb892c
+4	4017	1666326587583028893	CMakeFiles/tcpproxy_server.dir/acceptor.cpp.o	5ad87361b6a62963
 4	1177	1661487666264938412	src/transaction/CMakeFiles/transaction.dir/State.cpp.o	2a960397b3599928
 0	42	1664503381072396716	CMakeFiles/client.dir/src/test/client.cpp.o	85fc15a1441515d2
 1177	1183	1661487666272938329	src/transaction/lib/libtransaction.a	404fa06dca53e7d6
 4	1111	1661487666200939064	src/transaction/CMakeFiles/transaction.dir/transaction_impl.cpp.o	b441991e8066a3b4
-4	4017	1666326587583028893	CMakeFiles/tcpproxy_server.dir/acceptor.cpp.o	5ad87361b6a62963
-3	5578	1666326589143006992	CMakeFiles/tcpproxy_server.dir/tcpproxy_server.cpp.o	e6523d07fbcb892c
-4	11558	1666326595114923284	CMakeFiles/tcpproxy_server.dir/bridge.cpp.o	9d533ead5486979a
-11558	12133	1666326595694915166	bin/tcpproxy_server	64cca848fea1dcd0
-4	11286	1666576296305676258	CMakeFiles/tcpproxy_server.dir/bridge.cpp.o	9d533ead5486979a
-11286	11868	1666576296897670452	bin/tcpproxy_server	64cca848fea1dcd0

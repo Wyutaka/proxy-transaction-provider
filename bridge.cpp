@@ -36,7 +36,7 @@ namespace tcp_proxy {
             {
                 // cassandraのコネクション
                 // TODO コネクション、keyspaceは決め打ち
-                cass_cluster_set_contact_points(_cluster.get(), "192.168.12.23");
+                cass_cluster_set_contact_points(_cluster.get(), backend_host);
                 cass_cluster_set_protocol_version(_cluster.get(), CASS_PROTOCOL_VERSION_V4);
                 _connectFuture =
                         CASS_SHARED_PTR(future, cass_session_connect_keyspace_n(_session.get(), _cluster.get(), "txbench", 7)); //7-> keyspace_length;
@@ -147,7 +147,7 @@ namespace tcp_proxy {
         if (!error)
         {
 //            std::cout << "handle downstream_read" << std::endl;
-            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
+//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
 
             // ヘッダ情報の読み込み
             int n = 0;
@@ -197,6 +197,8 @@ namespace tcp_proxy {
                 }
                 // TODO postgresの対応
             } else if(downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
+
+//                std::cout << "postgres" << std::endl;
 
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
                 n = (int)downstream_data_[1] << 24;
