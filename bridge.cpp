@@ -161,7 +161,7 @@ namespace tcp_proxy {
 //                std::cout << "one query size" << n << std::endl;
                 if (n != 0) {
 
-                    transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector("127.0.0.1", shared_from_this()))};
+                    transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>> lock{transaction::TransactionProviderImpl<transaction::SlowCassandraConnector>(transaction::SlowCassandraConnector(backend_host, shared_from_this()))};
                     // 13~bodyまで切り取り
                     const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred));
 
@@ -220,14 +220,20 @@ namespace tcp_proxy {
                      43         |  xx xx xx xx | xx xx ...  |      5a      | 00 00 00 05 |  {49/54/45}
                 */
 
-                unsigned char res_ok[16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00, // C
+                unsigned char res_postgres[16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00, // C
                                                     0x5a, 0x00, 0x00, 0x00, 0x05, 0x54 // Z
                                                };
+
+
+                if (res.front().status() == transaction::Status::Error) {
+                    std::cout << "status ERROR" << std::endl;
+                    res_postgres[21] = 0x45;
+                }
 
                 // TODO 失敗、成功をレスポンスから判定して返す
                 // クライアントにレスポンスを返す
                 async_write(downstream_socket_,
-                            boost::asio::buffer(res_ok,16+6), // result_okの文字列長
+                            boost::asio::buffer(res_postgres,16+6), // result_okの文字列長
                             boost::bind(&bridge::handle_downstream_write,
                                         shared_from_this(),
                                         boost::asio::placeholders::error));

@@ -131,12 +131,12 @@ namespace transaction {
 //            resultFutures.reserve(req.queries().size());                // クエリサイズ分予約
             resultFutures.reserve(req.query().query().size());                // クエリサイズ分予約
 //            for (const auto &query : req.queries()) {                   // クエリの数だけ(req.queriesが正しく値が取れていないせつ)
-            debug::hexdump(reinterpret_cast<const char *>(req.query().query().data()), req.query().query().size()); // 下流バッファバッファ16進表示
+//            debug::hexdump(reinterpret_cast<const char *>(req.query().query().data()), req.query().query().size()); // 下流バッファバッファ16進表示
             CassStatement* statement = cass_statement_new(req.query().query().data(), 0); // statement, cass_statement_new_n(const char * query, size_t query_length, size_t parameter_count)
 
             auto result_future = cass_session_execute(_session.get(), statement);
 //            }
-            Response res;                                               // response
+            Response res({CoResponse(Status::Pending)});                                               // response
 //            res.reserve(req.queries().size());                          // クエリの数分responseの要素を予約
             res.reserve(req.query().query().size());                          // クエリの数分responseの要素を予約()
 
