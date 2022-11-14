@@ -11,6 +11,7 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 include(${CMAKE_SOURCE_DIR}/build/conanbuildinfo.cmake)
+set(CONAN_DISABLE_CHECK_COMPILER True CACHE BOOL "" FORCE)
 
 conan_basic_setup()
 #add_subdirectory(src/transaction)
@@ -31,11 +32,12 @@ add_executable(tcpproxy_server
         acceptor.cpp bridge.cpp src/lock/Lock.h++ src/lock/detail.h++
         src/lock/shared_mutex.h++ src/test/search.h++
         src/test/search.h++
-        src/test/DumpHex.h++)
+        src/test/DumpHex.h++
+        src/transaction/result.h++)
 
 add_executable(client
         src/test/client.cpp
-)
+        src/transaction/result.h++)
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 include_directories(client ${CONAN_INCLUDE_DIRS})

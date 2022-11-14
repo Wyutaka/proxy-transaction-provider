@@ -10,6 +10,7 @@
     boost/1.Y.Z
     cassandra-cpp-driver/2.Y.Z
     sqlite3/3.Y.Z
+    zlib/1.Y.Z
 
 [options]
 
@@ -27,13 +28,13 @@
 [full_requires]
     boost/1.71.0:adf48b8e4446dcb68f440fe42ff08878d5c7feed
     bzip2/1.0.8:da606cf731e334010b0bf6e85a2a6f891b9f36b0
-    cassandra-cpp-driver/2.15.3:fe123e8c089e3eb5efea32d851df5888d6b8746b
+    cassandra-cpp-driver/2.15.3:d14164d9a6f9c681f050f4e22e99dc8e40913ddf
     http_parser/2.9.4:6af9cc7cb931c5ad942174fd7838eb655717c709
     libbacktrace/cci.20210118:6af9cc7cb931c5ad942174fd7838eb655717c709
-    libuv/1.44.1:6af9cc7cb931c5ad942174fd7838eb655717c709
-    minizip/1.2.12:246e34d5f4e4616f683b16e283dceed8e0026257
-    openssl/1.1.1q:6af9cc7cb931c5ad942174fd7838eb655717c709
-    rapidjson/cci.20211112:5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9
+    libuv/1.41.1:6af9cc7cb931c5ad942174fd7838eb655717c709
+    minizip/1.2.11:246e34d5f4e4616f683b16e283dceed8e0026257
+    openssl/1.1.1k:6af9cc7cb931c5ad942174fd7838eb655717c709
+    rapidjson/cci.20200410:5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9
     sqlite3/3.39.0:6a03b0806bcf800472b17d5401d6ae7887a8a2b8
     zlib/1.2.12:6af9cc7cb931c5ad942174fd7838eb655717c709
 
