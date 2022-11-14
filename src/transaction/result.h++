@@ -192,14 +192,23 @@
 
             inline void SetBytes(std::vector<unsigned char>& bytes) {}
 
-            template<class Column, class... Columns>
-            int SetBytes(std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
-                // pack
-                int ds = 0;
-                ds += PackBytes(bytes, std::forward<Column>(column));
+            inline void SetBytes(int &size, std::vector<unsigned char>& bytes) {}
 
-                SetBytes(bytes, std::forward<Columns>(columns)...);
-                return ds;
+//            template<class Column, class... Columns>
+//            void SetBytes(std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
+//                // pack
+//                int ds = 0;
+//                ds += PackBytes(bytes, std::forward<Column>(column));
+//
+//                SetBytes(bytes, std::forward<Columns>(columns)...);
+//            }
+
+            template<class Column, class... Columns>
+            void SetBytes(int &size, std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
+                // pack
+                size += PackBytes(bytes, std::forward<Column>(column));
+
+                SetBytes(size, bytes, std::forward<Columns>(columns)...);
             }
 
 
@@ -248,8 +257,9 @@
 
         public:
             void addRow(Columns... columns) {
-                message_size += detail::SetBytes(bytes_, columns...);
+                detail::SetBytes(message_size, bytes_, columns...);
             }
+
 
             std::vector<unsigned char>& bytes() noexcept {
                 auto len_be = htobe32(message_size);

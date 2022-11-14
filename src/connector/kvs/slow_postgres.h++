@@ -193,7 +193,7 @@ namespace transaction {
                         rows.emplace_back(resRow); // resRowをrowsに末尾に追加
                     }
                 }
-                backend_res.addRow("hoge", 12, 234, 3);
+                backend_res.addRow("hoge", 1, 2, 3);
 //                std::string str(backend_res.bytes().begin(), backend_res.bytes().end());
                 debug::hexdump(reinterpret_cast<const char *>(backend_res.bytes().data()), backend_res.bytes().size());
 
