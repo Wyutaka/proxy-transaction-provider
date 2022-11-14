@@ -262,6 +262,23 @@ namespace tcp_proxy {
 //                    std::cout << "status ERROR" << std::endl;
 //                    res_postgres[21] = 0x45;
 //                }
+                for (auto itr = res.begin(); itr < res.end(); itr++) {
+                    std::cout << (int)itr->status() << std::endl;
+                    switch (itr->status()) {
+                        case transaction::Status::Result:
+                            std::cout << "result" << std::endl;
+                            break;
+                        case transaction::Status::Pending:
+                            std::cout << "pending" << std::endl;
+                            break;
+
+                    }
+                }
+                if(res.end()->status() == transaction::Status::Result) {
+                    std::cout << "result is arimasu" << std::endl;
+                }
+                std::vector<unsigned char> data = res.end()->get_raw_response(); // この辺がおかしい
+                debug::hexdump(reinterpret_cast<const char *>(data.data()), data.size());
 
                 // TODO 失敗、成功をレスポンスから判定して返す
                 // レスポンス帰る前に送ってる？？

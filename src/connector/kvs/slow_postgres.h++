@@ -189,17 +189,21 @@ namespace transaction {
                         for (std::size_t i = 0; i < columnNames.size(); ++i) {   // カラム名の数だけ
                             auto value = cass_row_get_column(row, i);            // 指定された行の index にある列の値を取得 // type->CassValue : 指定されたインデックスの列の値。インデックスが範囲外の場合は NULL が返されます。
                             resRow[columnNames[i]] = _toRowData(value);          // valueをRowDataに変換
+                            backend_res.addColumn(_toRowData(value).str());
                         }
                         rows.emplace_back(resRow); // resRowをrowsに末尾に追加
                     }
                 }
-                backend_res.addRow("hoge", 1, 2, 3);
+//                backend_res.addRow("hoge", 1, 2, 3);
 //                std::string str(backend_res.bytes().begin(), backend_res.bytes().end());
                 debug::hexdump(reinterpret_cast<const char *>(backend_res.bytes().data()), backend_res.bytes().size());
 
                 // rowからで０で
 //
-//                res.emplace_back(Status::Result, rows);                      // resの末尾にResult,rowを追加
+                res.emplace_back(CoResponse(Status::Result, rows));                      // resの末尾にResult,rowを追加
+                if (res.end()->status() == Status::Result) {
+                    res.end()->set_raw_response(backend_res.bytes());
+                }
             }
 
             return res;

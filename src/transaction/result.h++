@@ -134,7 +134,6 @@
                 auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
                 bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
                 bytes.insert(bytes.end(), str.begin(), str.begin() + str.size()); // データの中身を入力
-                std::cout << str.size() << std::endl;
                 return str.size() + 4; // // 4はデータ長分
             }
 
@@ -169,7 +168,6 @@
 //                int size = std::string_view(reinterpret_cast<const char *>(buf)).length();
                 sprintf(buf, "%d", integer); // bufにintegerの文字列コピー
                 size_t size = strlen(buf);
-                std::cout << size << std::endl;
                 auto len_be = htobe32(size);
                 auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
                 bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
@@ -260,15 +258,21 @@
                 detail::SetBytes(message_size, bytes_, columns...);
             }
 
+            template<class Column>
+            void addColumn(Column column) {
+                detail::SetBytes(message_size, bytes_, column);
+            }
+
 
             std::vector<unsigned char>& bytes() noexcept {
                 auto len_be = htobe32(message_size);
                 auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
-                bytes_.at(4) = len_be_first[3];
+                for (int i = 1; i <= 4; i++) {
+                    bytes_.at(i) = len_be_first[i-1]; // データ長更新
+                }
 //                bytes_.insert(bytes_.begin() + 1, len_be_first, len_be_first + 4);
 //                INSERT_BYTES4(bytes_, message_size);
 //                INSERT_BYTES2(bytes_, 1);
-                std::cout << message_size << std::endl;
                 return bytes_;}
         };
 
