@@ -9,6 +9,7 @@
 #include "server.h++"
 #include <stdlib.h>
 #include <iostream>
+#include <libpq-fe.h>
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
@@ -21,6 +22,13 @@
         if (t)                                                                                     \
             cass_##type##_free(t);                                                                 \
     })
+
+static void
+exit_nicely(PGconn *conn)
+{
+    PQfinish(conn);
+    exit(1);
+}
 
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
@@ -35,7 +43,7 @@ namespace tcp_proxy {
             _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter()))
             {
                 // cassandraのコネクション
-                // TODO コネクション、keyspaceは決め打ち
+                // 注意：keyspaceは決め打ち
                 cass_cluster_set_contact_points(_cluster.get(), backend_host);
                 cass_cluster_set_protocol_version(_cluster.get(), CASS_PROTOCOL_VERSION_V4);
                 _connectFuture =
@@ -45,7 +53,95 @@ namespace tcp_proxy {
                     std::cerr << "cannot connect to Cassandra" << std::endl;
                     std::terminate();
                 }
-            }
+
+//                // TODO postgresのコネクションを作成
+                const char *conninfo;
+                PGconn *_conn;
+
+                conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+                _conn = PQconnectdb(conninfo);
+
+                /* バックエンドとの接続確立に成功したかを確認する */
+                if (PQstatus(_conn) != CONNECTION_OK)
+                {
+                    fprintf(stderr, "Connection to database failed: %s",
+                        PQerrorMessage(_conn));
+                    exit_nicely(_conn);
+                }
+
+        PGresult *res;
+        int nFields;
+
+        /*
+        * この試験ケースではカーソルを使用する。
+        *  そのため、トランザクションブロック内で実行する必要がある。
+        * 全てを単一の"select * from pg_database"というPQexec()で行うこと
+        * も可能だが、例としては簡単過ぎる。
+        */
+
+        /* トランザクションブロックを開始する。 */
+        res = PQexec(_conn, "BEGIN");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        {
+            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
+            PQclear(res);
+            exit_nicely(_conn);
+        }
+
+
+
+        /*
+         * 不要になったら、メモリリークを防ぐためにPGresultをPQclearすべき。
+         */
+        PQclear(res);
+
+        /*
+         * データベースのシステムカタログpg_databaseから行を取り出す。
+         */
+        res = PQexec(_conn, "INSERT INTO bench(pk, field1, field2, field3) VALUES ('neko', 0, 1, 2)");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        {
+            fprintf(stderr, "INSERT INTO bench(pk, field1, field2, field3) VALUES ('neko', 0, 1, 2)", PQerrorMessage(_conn));
+            PQclear(res);
+            exit_nicely(_conn);
+        }
+        PQclear(res);
+
+//        res = PQexec(_conn, "FETCH ALL in myportal");
+//        if (PQresultStatus(res) != PGRES_TUPLES_OK)
+//        {
+//            fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
+//            PQclear(res);
+//            exit_nicely(_conn);
+//        }
+//
+//        /* まず属性名を表示する。 */
+//        nFields = PQnfields(res);
+//        for (int i = 0; i < nFields; i++)
+//            printf("%15s", PQfname(res, i));
+//        printf("\n\n");
+//
+//        /* そして行を表示する。 */
+//        for (int i = 0; i < PQntuples(res); i++)
+//        {
+//            for (int j = 0; j < nFields; j++)
+//                printf("%15s", PQgetvalue(res, i, j));
+//            printf("\n");
+//        }
+//
+//        PQclear(res);
+//
+//        /* ポータルを閉ざす。ここではエラーチェックは省略した… */
+//        res = PQexec(_conn, "CLOSE myportal");
+//        PQclear(res);
+
+        /* トランザクションを終了する */
+        res = PQexec(_conn, "END");
+        PQclear(res);
+
+        /* データベースとの接続を閉じ、後始末を行う。 */
+        PQfinish(_conn);
+    }
 
     bridge::~bridge() {
         _connectFuture.reset();

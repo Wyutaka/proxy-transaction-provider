@@ -7,7 +7,6 @@
 -- Conan: Compiler GCC>=5, checking major version 9
 -- Conan: Checking correct version: 9
 -- archtecture is x86_64
--- enter
 -- Configuring done
 -- Generating done
 -- Build files have been written to: /home/y-watanabe/proxy-transaction-provider/cmake-build-debug

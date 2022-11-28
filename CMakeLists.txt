@@ -6,7 +6,11 @@ set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-O3 -pedantic -ansi -Wno-error")
 set(CMAKE_CXX_FLAGS "-std=c++17")
-# find_package(Boost REQUIRED)
+# (First set LIBVERSION to the libpqxx version you have.)
+# On Windows we generally recommend building libpqxx as a shared
+# library.  On other platforms, we recommend a static library.
+set(BUILD_SHARED_LIBS OFF)
+
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
@@ -35,7 +39,7 @@ add_executable(tcpproxy_server
 
 add_executable(client
         src/test/client.cpp
-)
+        src/connector/kvs/slow_backend_postgres.h++)
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 include_directories(client ${CONAN_INCLUDE_DIRS})
@@ -45,15 +49,17 @@ target_link_libraries(tcpproxy_server stdc++ pthread)
 message(STATUS "archtecture is ${CMAKE_SYSTEM_PROCESSOR}")
 link_directories( ${CONAN_INCLUDE_DIRS})
 
-IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
-    target_link_libraries(tcpproxy_server stdc++ boost_thread-mt)
-ELSE(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
-    message(STATUS "enter")
-    target_link_libraries(tcpproxy_server stdc++ boost_thread)
-ENDIF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+#IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+#    target_link_libraries(tcpproxy_server stdc++ boost_thread-mt)
+#ELSE(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+#    message(STATUS "enter")
+#    target_link_libraries(tcpproxy_server stdc++ boost_thread)
+#ENDIF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
 
 target_link_libraries(tcpproxy_server ${CONAN_LIBS})
 target_link_libraries(tcpproxy_server sqlite3)
+target_link_libraries(tcpproxy_server pqxx)
+
 target_link_libraries(client ${CONAN_LIBS})
 
 #target_link_libraries(tcpproxy_server transaction)
