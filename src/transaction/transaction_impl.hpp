@@ -14,6 +14,7 @@
 #include "State.h++"
 #include "../../query.h++"
 #include "src/connector/kvs/slow_postgres.h++"
+#include "src/connector/kvs/slow_backend_postgres.h++"
 
 namespace transaction {
     template <class NextF>
@@ -32,6 +33,10 @@ namespace transaction {
         _next(std::move(kc)) {}
 
         TransactionProviderImpl(CassandraConnectorPGSQL kc)
+                : _states(),
+                  _next(std::move(kc)) {}
+
+        TransactionProviderImpl(PostgresConnector kc)
                 : _states(),
                   _next(std::move(kc)) {}
 

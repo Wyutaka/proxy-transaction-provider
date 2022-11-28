@@ -23,13 +23,6 @@
             cass_##type##_free(t);                                                                 \
     })
 
-static void
-exit_nicely(PGconn *conn)
-{
-    PQfinish(conn);
-    exit(1);
-}
-
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
     typedef boost::shared_ptr<bridge> ptr_type;
@@ -55,98 +48,23 @@ namespace tcp_proxy {
                 }
 
 //                // TODO postgresのコネクションを作成
-                const char *conninfo;
-                PGconn *_conn;
 
-                conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
-                _conn = PQconnectdb(conninfo);
+                _conn = PQconnectdb(backend_postgres_conninfo);
 
                 /* バックエンドとの接続確立に成功したかを確認する */
                 if (PQstatus(_conn) != CONNECTION_OK)
                 {
                     fprintf(stderr, "Connection to database failed: %s",
-                        PQerrorMessage(_conn));
+                            PQerrorMessage(_conn));
                     exit_nicely(_conn);
                 }
-
-        PGresult *res;
-        int nFields;
-
-        /*
-        * この試験ケースではカーソルを使用する。
-        *  そのため、トランザクションブロック内で実行する必要がある。
-        * 全てを単一の"select * from pg_database"というPQexec()で行うこと
-        * も可能だが、例としては簡単過ぎる。
-        */
-
-        /* トランザクションブロックを開始する。 */
-        res = PQexec(_conn, "BEGIN");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
-        {
-            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
-            PQclear(res);
-            exit_nicely(_conn);
-        }
-
-
-
-        /*
-         * 不要になったら、メモリリークを防ぐためにPGresultをPQclearすべき。
-         */
-        PQclear(res);
-
-        /*
-         * データベースのシステムカタログpg_databaseから行を取り出す。
-         */
-        res = PQexec(_conn, "INSERT INTO bench(pk, field1, field2, field3) VALUES ('neko', 0, 1, 2)");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK)
-        {
-            fprintf(stderr, "INSERT INTO bench(pk, field1, field2, field3) VALUES ('neko', 0, 1, 2)", PQerrorMessage(_conn));
-            PQclear(res);
-            exit_nicely(_conn);
-        }
-        PQclear(res);
-
-//        res = PQexec(_conn, "FETCH ALL in myportal");
-//        if (PQresultStatus(res) != PGRES_TUPLES_OK)
-//        {
-//            fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
-//            PQclear(res);
-//            exit_nicely(_conn);
-//        }
-//
-//        /* まず属性名を表示する。 */
-//        nFields = PQnfields(res);
-//        for (int i = 0; i < nFields; i++)
-//            printf("%15s", PQfname(res, i));
-//        printf("\n\n");
-//
-//        /* そして行を表示する。 */
-//        for (int i = 0; i < PQntuples(res); i++)
-//        {
-//            for (int j = 0; j < nFields; j++)
-//                printf("%15s", PQgetvalue(res, i, j));
-//            printf("\n");
-//        }
-//
-//        PQclear(res);
-//
-//        /* ポータルを閉ざす。ここではエラーチェックは省略した… */
-//        res = PQexec(_conn, "CLOSE myportal");
-//        PQclear(res);
-
-        /* トランザクションを終了する */
-        res = PQexec(_conn, "END");
-        PQclear(res);
-
-        /* データベースとの接続を閉じ、後始末を行う。 */
-        PQfinish(_conn);
     }
 
     bridge::~bridge() {
         _connectFuture.reset();
         _session.reset();
         _cluster.reset();
+        PQfinish(_conn);
     }
     socket_type& bridge::downstream_socket()
     {
@@ -248,6 +166,7 @@ namespace tcp_proxy {
             // ヘッダ情報の読み込み
             int n = 0;
 
+            // Cassandraのコード
             if(downstream_data_[0] == 0x04 && downstream_data_[4] == cassprotocol::opcode::QUERY) { //is cassandra request version
 //                std::cout << "cql detected" << std::endl;
                 n = (int)downstream_data_[5] << 24;
@@ -291,7 +210,7 @@ namespace tcp_proxy {
                                             boost::asio::placeholders::bytes_transferred));
                     }
                 }
-                // TODO postgresの対応
+                // postgresのコード
             } else if(downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
 
 //                std::cout << "postgres" << std::endl;
@@ -303,7 +222,7 @@ namespace tcp_proxy {
                 n += (int)downstream_data_[4];
 
                 // lock層の生成(postgres用)
-                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::CassandraConnectorPGSQL>> lock{transaction::TransactionProviderImpl<transaction::CassandraConnectorPGSQL>(transaction::CassandraConnectorPGSQL(shared_from_this(), _cluster, _session))};
+                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::PostgresConnector>> lock{transaction::TransactionProviderImpl<transaction::PostgresConnector>(transaction::PostgresConnector(shared_from_this(), _conn))};
                 // リクエストの生成
                 const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[5]), n - 4), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred)); // n-4 00まで含める｀h
                 // レスポンス生成
