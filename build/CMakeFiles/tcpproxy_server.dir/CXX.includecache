@@ -18534,6 +18534,18 @@ stddef.h
 stdint.h
 -
 
+/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include/libpq-fe.h
+stdio.h
+-
+postgres_ext.h
+/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include/postgres_ext.h
+
+/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include/pg_config_ext.h
+
+/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include/postgres_ext.h
+pg_config_ext.h
+/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include/pg_config_ext.h
+
 /home/y-watanabe/.conan/data/sqlite3/3.39.0/_/_/package/6a03b0806bcf800472b17d5401d6ae7887a8a2b8/include/sqlite3.h
 stdarg.h
 -
@@ -18552,6 +18564,8 @@ server.h++
 stdlib.h
 -
 iostream
+-
+libpq-fe.h
 -
 ./src/lock/Lock.h++
 /home/y-watanabe/proxy-transaction-provider/src/lock/Lock.h++

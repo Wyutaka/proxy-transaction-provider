@@ -9,6 +9,7 @@
 [requires]
     boost/1.Y.Z
     cassandra-cpp-driver/2.Y.Z
+    libpq/14.Y.Z
     sqlite3/3.Y.Z
 
 [options]
@@ -30,6 +31,7 @@
     cassandra-cpp-driver/2.15.3:fe123e8c089e3eb5efea32d851df5888d6b8746b
     http_parser/2.9.4:6af9cc7cb931c5ad942174fd7838eb655717c709
     libbacktrace/cci.20210118:6af9cc7cb931c5ad942174fd7838eb655717c709
+    libpq/14.5:6af9cc7cb931c5ad942174fd7838eb655717c709
     libuv/1.44.1:6af9cc7cb931c5ad942174fd7838eb655717c709
     minizip/1.2.12:246e34d5f4e4616f683b16e283dceed8e0026257
     openssl/1.1.1q:6af9cc7cb931c5ad942174fd7838eb655717c709
@@ -115,6 +117,10 @@
     http_parser:shared=False
     libbacktrace:fPIC=True
     libbacktrace:shared=False
+    libpq:disable_rpath=False
+    libpq:fPIC=True
+    libpq:shared=False
+    libpq:with_openssl=False
     libuv:fPIC=True
     libuv:shared=False
     minizip:bzip2=True

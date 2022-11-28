@@ -156,6 +156,44 @@ set(CONAN_LIBS_SQLITE3 ${CONAN_PKG_LIBS_SQLITE3} ${CONAN_SYSTEM_LIBS_SQLITE3} ${
 
 
 #################
+###  LIBPQ
+#################
+set(CONAN_LIBPQ_ROOT "/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709")
+set(CONAN_INCLUDE_DIRS_LIBPQ "/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include")
+set(CONAN_LIB_DIRS_LIBPQ "/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib")
+set(CONAN_BIN_DIRS_LIBPQ "/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/bin")
+set(CONAN_RES_DIRS_LIBPQ )
+set(CONAN_SRC_DIRS_LIBPQ )
+set(CONAN_BUILD_DIRS_LIBPQ "/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/")
+set(CONAN_FRAMEWORK_DIRS_LIBPQ )
+set(CONAN_LIBS_LIBPQ pq pgcommon pgcommon_shlib pgport pgport_shlib)
+set(CONAN_PKG_LIBS_LIBPQ pq pgcommon pgcommon_shlib pgport pgport_shlib)
+set(CONAN_SYSTEM_LIBS_LIBPQ pthread)
+set(CONAN_FRAMEWORKS_LIBPQ )
+set(CONAN_FRAMEWORKS_FOUND_LIBPQ "")  # Will be filled later
+set(CONAN_DEFINES_LIBPQ )
+set(CONAN_BUILD_MODULES_PATHS_LIBPQ )
+# COMPILE_DEFINITIONS are equal to CONAN_DEFINES without -D, for targets
+set(CONAN_COMPILE_DEFINITIONS_LIBPQ )
+
+set(CONAN_C_FLAGS_LIBPQ "")
+set(CONAN_CXX_FLAGS_LIBPQ "")
+set(CONAN_SHARED_LINKER_FLAGS_LIBPQ "")
+set(CONAN_EXE_LINKER_FLAGS_LIBPQ "")
+
+# For modern cmake targets we use the list variables (separated with ;)
+set(CONAN_C_FLAGS_LIBPQ_LIST "")
+set(CONAN_CXX_FLAGS_LIBPQ_LIST "")
+set(CONAN_SHARED_LINKER_FLAGS_LIBPQ_LIST "")
+set(CONAN_EXE_LINKER_FLAGS_LIBPQ_LIST "")
+
+# Apple Frameworks
+conan_find_apple_frameworks(CONAN_FRAMEWORKS_FOUND_LIBPQ "${CONAN_FRAMEWORKS_LIBPQ}" "_LIBPQ" "")
+# Append to aggregated values variable
+set(CONAN_LIBS_LIBPQ ${CONAN_PKG_LIBS_LIBPQ} ${CONAN_SYSTEM_LIBS_LIBPQ} ${CONAN_FRAMEWORKS_FOUND_LIBPQ})
+
+
+#################
 ###  LIBUV
 #################
 set(CONAN_LIBUV_ROOT "/home/y-watanabe/.conan/data/libuv/1.44.1/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709")
@@ -474,7 +512,7 @@ set(CONAN_SETTINGS_COMPILER_VERSION "9")
 set(CONAN_SETTINGS_OS "Linux")
 set(CONAN_SETTINGS_OS_BUILD "Linux")
 
-set(CONAN_DEPENDENCIES cassandra-cpp-driver boost sqlite3 libuv http_parser rapidjson openssl minizip libbacktrace zlib bzip2)
+set(CONAN_DEPENDENCIES cassandra-cpp-driver boost sqlite3 libpq libuv http_parser rapidjson openssl minizip libbacktrace zlib bzip2)
 # Storing original command line args (CMake helper) flags
 set(CONAN_CMD_CXX_FLAGS ${CONAN_CXX_FLAGS})
 
@@ -485,6 +523,7 @@ set(CONAN_CMD_C_FLAGS ${CONAN_C_FLAGS})
 set(CONAN_INCLUDE_DIRS "/home/y-watanabe/.conan/data/cassandra-cpp-driver/2.15.3/_/_/package/fe123e8c089e3eb5efea32d851df5888d6b8746b/include"
 			"/home/y-watanabe/.conan/data/boost/1.71.0/_/_/package/adf48b8e4446dcb68f440fe42ff08878d5c7feed/include"
 			"/home/y-watanabe/.conan/data/sqlite3/3.39.0/_/_/package/6a03b0806bcf800472b17d5401d6ae7887a8a2b8/include"
+			"/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include"
 			"/home/y-watanabe/.conan/data/libuv/1.44.1/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include"
 			"/home/y-watanabe/.conan/data/http_parser/2.9.4/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/include"
 			"/home/y-watanabe/.conan/data/rapidjson/cci.20211112/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/include"
@@ -497,6 +536,7 @@ set(CONAN_INCLUDE_DIRS "/home/y-watanabe/.conan/data/cassandra-cpp-driver/2.15.3
 set(CONAN_LIB_DIRS "/home/y-watanabe/.conan/data/cassandra-cpp-driver/2.15.3/_/_/package/fe123e8c089e3eb5efea32d851df5888d6b8746b/lib"
 			"/home/y-watanabe/.conan/data/boost/1.71.0/_/_/package/adf48b8e4446dcb68f440fe42ff08878d5c7feed/lib"
 			"/home/y-watanabe/.conan/data/sqlite3/3.39.0/_/_/package/6a03b0806bcf800472b17d5401d6ae7887a8a2b8/lib"
+			"/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib"
 			"/home/y-watanabe/.conan/data/libuv/1.44.1/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib"
 			"/home/y-watanabe/.conan/data/http_parser/2.9.4/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib"
 			"/home/y-watanabe/.conan/data/openssl/1.1.1q/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib"
@@ -505,12 +545,13 @@ set(CONAN_LIB_DIRS "/home/y-watanabe/.conan/data/cassandra-cpp-driver/2.15.3/_/_
 			"/home/y-watanabe/.conan/data/zlib/1.2.12/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/lib"
 			"/home/y-watanabe/.conan/data/bzip2/1.0.8/_/_/package/da606cf731e334010b0bf6e85a2a6f891b9f36b0/lib" ${CONAN_LIB_DIRS})
 set(CONAN_BIN_DIRS "/home/y-watanabe/.conan/data/sqlite3/3.39.0/_/_/package/6a03b0806bcf800472b17d5401d6ae7887a8a2b8/bin"
+			"/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/bin"
 			"/home/y-watanabe/.conan/data/openssl/1.1.1q/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/bin"
 			"/home/y-watanabe/.conan/data/bzip2/1.0.8/_/_/package/da606cf731e334010b0bf6e85a2a6f891b9f36b0/bin" ${CONAN_BIN_DIRS})
 set(CONAN_RES_DIRS  ${CONAN_RES_DIRS})
 set(CONAN_FRAMEWORK_DIRS  ${CONAN_FRAMEWORK_DIRS})
-set(CONAN_LIBS cassandra_static boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_log_setup boost_log boost_locale boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_atomic boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_wserialization boost_serialization sqlite3 uv_a http_parser ssl crypto minizip backtrace z bz2 ${CONAN_LIBS})
-set(CONAN_PKG_LIBS cassandra_static boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_log_setup boost_log boost_locale boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_atomic boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_wserialization boost_serialization sqlite3 uv_a http_parser ssl crypto minizip backtrace z bz2 ${CONAN_PKG_LIBS})
+set(CONAN_LIBS cassandra_static boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_log_setup boost_log boost_locale boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_atomic boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_wserialization boost_serialization sqlite3 pq pgcommon pgcommon_shlib pgport pgport_shlib uv_a http_parser ssl crypto minizip backtrace z bz2 ${CONAN_LIBS})
+set(CONAN_PKG_LIBS cassandra_static boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_log_setup boost_log boost_locale boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_atomic boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_wserialization boost_serialization sqlite3 pq pgcommon pgcommon_shlib pgport pgport_shlib uv_a http_parser ssl crypto minizip backtrace z bz2 ${CONAN_PKG_LIBS})
 set(CONAN_SYSTEM_LIBS m dl pthread rt ${CONAN_SYSTEM_LIBS})
 set(CONAN_FRAMEWORKS  ${CONAN_FRAMEWORKS})
 set(CONAN_FRAMEWORKS_FOUND "")  # Will be filled later
@@ -522,6 +563,7 @@ set(CONAN_DEFINES "-DHAVE_BZIP2"
 set(CONAN_BUILD_MODULES_PATHS  ${CONAN_BUILD_MODULES_PATHS})
 set(CONAN_CMAKE_MODULE_PATH "/home/y-watanabe/.conan/data/cassandra-cpp-driver/2.15.3/_/_/package/fe123e8c089e3eb5efea32d851df5888d6b8746b/"
 			"/home/y-watanabe/.conan/data/boost/1.71.0/_/_/package/adf48b8e4446dcb68f440fe42ff08878d5c7feed/"
+			"/home/y-watanabe/.conan/data/libpq/14.5/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/"
 			"/home/y-watanabe/.conan/data/libuv/1.44.1/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/"
 			"/home/y-watanabe/.conan/data/http_parser/2.9.4/_/_/package/6af9cc7cb931c5ad942174fd7838eb655717c709/"
 			"/home/y-watanabe/.conan/data/rapidjson/cci.20211112/_/_/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/"
@@ -760,6 +802,76 @@ macro(conan_define_targets)
                                                                   $<$<CONFIG:RelWithDebInfo>:${CONAN_C_FLAGS_SQLITE3_RELWITHDEBINFO_LIST} ${CONAN_CXX_FLAGS_SQLITE3_RELWITHDEBINFO_LIST}>
                                                                   $<$<CONFIG:MinSizeRel>:${CONAN_C_FLAGS_SQLITE3_MINSIZEREL_LIST} ${CONAN_CXX_FLAGS_SQLITE3_MINSIZEREL_LIST}>
                                                                   $<$<CONFIG:Debug>:${CONAN_C_FLAGS_SQLITE3_DEBUG_LIST}  ${CONAN_CXX_FLAGS_SQLITE3_DEBUG_LIST}>)
+
+
+    set(_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES "${CONAN_SYSTEM_LIBS_LIBPQ} ${CONAN_FRAMEWORKS_FOUND_LIBPQ} ")
+    string(REPLACE " " ";" _CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES}")
+    conan_package_library_targets("${CONAN_PKG_LIBS_LIBPQ}" "${CONAN_LIB_DIRS_LIBPQ}"
+                                  CONAN_PACKAGE_TARGETS_LIBPQ "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES}"
+                                  "" libpq)
+    set(_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_DEBUG "${CONAN_SYSTEM_LIBS_LIBPQ_DEBUG} ${CONAN_FRAMEWORKS_FOUND_LIBPQ_DEBUG} ")
+    string(REPLACE " " ";" _CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_DEBUG "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_DEBUG}")
+    conan_package_library_targets("${CONAN_PKG_LIBS_LIBPQ_DEBUG}" "${CONAN_LIB_DIRS_LIBPQ_DEBUG}"
+                                  CONAN_PACKAGE_TARGETS_LIBPQ_DEBUG "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_DEBUG}"
+                                  "debug" libpq)
+    set(_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELEASE "${CONAN_SYSTEM_LIBS_LIBPQ_RELEASE} ${CONAN_FRAMEWORKS_FOUND_LIBPQ_RELEASE} ")
+    string(REPLACE " " ";" _CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELEASE "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELEASE}")
+    conan_package_library_targets("${CONAN_PKG_LIBS_LIBPQ_RELEASE}" "${CONAN_LIB_DIRS_LIBPQ_RELEASE}"
+                                  CONAN_PACKAGE_TARGETS_LIBPQ_RELEASE "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELEASE}"
+                                  "release" libpq)
+    set(_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELWITHDEBINFO "${CONAN_SYSTEM_LIBS_LIBPQ_RELWITHDEBINFO} ${CONAN_FRAMEWORKS_FOUND_LIBPQ_RELWITHDEBINFO} ")
+    string(REPLACE " " ";" _CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELWITHDEBINFO "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELWITHDEBINFO}")
+    conan_package_library_targets("${CONAN_PKG_LIBS_LIBPQ_RELWITHDEBINFO}" "${CONAN_LIB_DIRS_LIBPQ_RELWITHDEBINFO}"
+                                  CONAN_PACKAGE_TARGETS_LIBPQ_RELWITHDEBINFO "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELWITHDEBINFO}"
+                                  "relwithdebinfo" libpq)
+    set(_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_MINSIZEREL "${CONAN_SYSTEM_LIBS_LIBPQ_MINSIZEREL} ${CONAN_FRAMEWORKS_FOUND_LIBPQ_MINSIZEREL} ")
+    string(REPLACE " " ";" _CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_MINSIZEREL "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_MINSIZEREL}")
+    conan_package_library_targets("${CONAN_PKG_LIBS_LIBPQ_MINSIZEREL}" "${CONAN_LIB_DIRS_LIBPQ_MINSIZEREL}"
+                                  CONAN_PACKAGE_TARGETS_LIBPQ_MINSIZEREL "${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_MINSIZEREL}"
+                                  "minsizerel" libpq)
+
+    add_library(CONAN_PKG::libpq INTERFACE IMPORTED)
+
+    # Property INTERFACE_LINK_FLAGS do not work, necessary to add to INTERFACE_LINK_LIBRARIES
+    set_property(TARGET CONAN_PKG::libpq PROPERTY INTERFACE_LINK_LIBRARIES ${CONAN_PACKAGE_TARGETS_LIBPQ} ${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES}
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,MODULE_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${CONAN_EXE_LINKER_FLAGS_LIBPQ_LIST}>
+
+                                                                 $<$<CONFIG:Release>:${CONAN_PACKAGE_TARGETS_LIBPQ_RELEASE} ${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELEASE}
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_RELEASE_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,MODULE_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_RELEASE_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${CONAN_EXE_LINKER_FLAGS_LIBPQ_RELEASE_LIST}>>
+
+                                                                 $<$<CONFIG:RelWithDebInfo>:${CONAN_PACKAGE_TARGETS_LIBPQ_RELWITHDEBINFO} ${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_RELWITHDEBINFO}
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_RELWITHDEBINFO_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,MODULE_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_RELWITHDEBINFO_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${CONAN_EXE_LINKER_FLAGS_LIBPQ_RELWITHDEBINFO_LIST}>>
+
+                                                                 $<$<CONFIG:MinSizeRel>:${CONAN_PACKAGE_TARGETS_LIBPQ_MINSIZEREL} ${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_MINSIZEREL}
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_MINSIZEREL_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,MODULE_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_MINSIZEREL_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${CONAN_EXE_LINKER_FLAGS_LIBPQ_MINSIZEREL_LIST}>>
+
+                                                                 $<$<CONFIG:Debug>:${CONAN_PACKAGE_TARGETS_LIBPQ_DEBUG} ${_CONAN_PKG_LIBS_LIBPQ_DEPENDENCIES_DEBUG}
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_DEBUG_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,MODULE_LIBRARY>:${CONAN_SHARED_LINKER_FLAGS_LIBPQ_DEBUG_LIST}>
+                                                                 $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${CONAN_EXE_LINKER_FLAGS_LIBPQ_DEBUG_LIST}>>)
+    set_property(TARGET CONAN_PKG::libpq PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${CONAN_INCLUDE_DIRS_LIBPQ}
+                                                                      $<$<CONFIG:Release>:${CONAN_INCLUDE_DIRS_LIBPQ_RELEASE}>
+                                                                      $<$<CONFIG:RelWithDebInfo>:${CONAN_INCLUDE_DIRS_LIBPQ_RELWITHDEBINFO}>
+                                                                      $<$<CONFIG:MinSizeRel>:${CONAN_INCLUDE_DIRS_LIBPQ_MINSIZEREL}>
+                                                                      $<$<CONFIG:Debug>:${CONAN_INCLUDE_DIRS_LIBPQ_DEBUG}>)
+    set_property(TARGET CONAN_PKG::libpq PROPERTY INTERFACE_COMPILE_DEFINITIONS ${CONAN_COMPILE_DEFINITIONS_LIBPQ}
+                                                                      $<$<CONFIG:Release>:${CONAN_COMPILE_DEFINITIONS_LIBPQ_RELEASE}>
+                                                                      $<$<CONFIG:RelWithDebInfo>:${CONAN_COMPILE_DEFINITIONS_LIBPQ_RELWITHDEBINFO}>
+                                                                      $<$<CONFIG:MinSizeRel>:${CONAN_COMPILE_DEFINITIONS_LIBPQ_MINSIZEREL}>
+                                                                      $<$<CONFIG:Debug>:${CONAN_COMPILE_DEFINITIONS_LIBPQ_DEBUG}>)
+    set_property(TARGET CONAN_PKG::libpq PROPERTY INTERFACE_COMPILE_OPTIONS ${CONAN_C_FLAGS_LIBPQ_LIST} ${CONAN_CXX_FLAGS_LIBPQ_LIST}
+                                                                  $<$<CONFIG:Release>:${CONAN_C_FLAGS_LIBPQ_RELEASE_LIST} ${CONAN_CXX_FLAGS_LIBPQ_RELEASE_LIST}>
+                                                                  $<$<CONFIG:RelWithDebInfo>:${CONAN_C_FLAGS_LIBPQ_RELWITHDEBINFO_LIST} ${CONAN_CXX_FLAGS_LIBPQ_RELWITHDEBINFO_LIST}>
+                                                                  $<$<CONFIG:MinSizeRel>:${CONAN_C_FLAGS_LIBPQ_MINSIZEREL_LIST} ${CONAN_CXX_FLAGS_LIBPQ_MINSIZEREL_LIST}>
+                                                                  $<$<CONFIG:Debug>:${CONAN_C_FLAGS_LIBPQ_DEBUG_LIST}  ${CONAN_CXX_FLAGS_LIBPQ_DEBUG_LIST}>)
 
 
     set(_CONAN_PKG_LIBS_LIBUV_DEPENDENCIES "${CONAN_SYSTEM_LIBS_LIBUV} ${CONAN_FRAMEWORKS_FOUND_LIBUV} ")
@@ -1321,7 +1433,7 @@ macro(conan_define_targets)
                                                                   $<$<CONFIG:MinSizeRel>:${CONAN_C_FLAGS_BZIP2_MINSIZEREL_LIST} ${CONAN_CXX_FLAGS_BZIP2_MINSIZEREL_LIST}>
                                                                   $<$<CONFIG:Debug>:${CONAN_C_FLAGS_BZIP2_DEBUG_LIST}  ${CONAN_CXX_FLAGS_BZIP2_DEBUG_LIST}>)
 
-    set(CONAN_TARGETS CONAN_PKG::cassandra-cpp-driver CONAN_PKG::boost CONAN_PKG::sqlite3 CONAN_PKG::libuv CONAN_PKG::http_parser CONAN_PKG::rapidjson CONAN_PKG::openssl CONAN_PKG::minizip CONAN_PKG::libbacktrace CONAN_PKG::zlib CONAN_PKG::bzip2)
+    set(CONAN_TARGETS CONAN_PKG::cassandra-cpp-driver CONAN_PKG::boost CONAN_PKG::sqlite3 CONAN_PKG::libpq CONAN_PKG::libuv CONAN_PKG::http_parser CONAN_PKG::rapidjson CONAN_PKG::openssl CONAN_PKG::minizip CONAN_PKG::libbacktrace CONAN_PKG::zlib CONAN_PKG::bzip2)
 
 endmacro()
 

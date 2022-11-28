@@ -309,6 +309,22 @@
    "False"
   ],
   [
+   "libpq:disable_rpath",
+   "False"
+  ],
+  [
+   "libpq:fPIC",
+   "True"
+  ],
+  [
+   "libpq:shared",
+   "False"
+  ],
+  [
+   "libpq:with_openssl",
+   "False"
+  ],
+  [
    "libuv:fPIC",
    "True"
   ],
