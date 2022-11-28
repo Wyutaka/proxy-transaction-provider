@@ -42,7 +42,6 @@ add_executable(tcpproxy_server
 add_executable(client
         src/test/client.cpp
         src/connector/kvs/slow_backend_postgres.h++)
-        src/transaction/result.h++)
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 include_directories(client ${CONAN_INCLUDE_DIRS})
