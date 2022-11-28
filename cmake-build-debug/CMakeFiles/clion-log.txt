@@ -1,12 +1,7 @@
 /home/y-watanabe/.cache/JetBrains/RemoteDev/dist/68305831d57ea_CLion-2022.2.4/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/y-watanabe/.cache/JetBrains/RemoteDev/dist/68305831d57ea_CLion-2022.2.4/bin/ninja/linux/ninja -G Ninja -S /home/y-watanabe/proxy-transaction-provider -B /home/y-watanabe/proxy-transaction-provider/cmake-build-debug
--- Conan: Adjusting output directories
--- Conan: Using cmake global configuration
--- Conan: Adjusting default RPATHs Conan policies
--- Conan: Adjusting language standard
--- Current conanbuildinfo.cmake directory: /home/y-watanabe/proxy-transaction-provider/build
--- Conan: Compiler GCC>=5, checking major version 9
--- Conan: Checking correct version: 9
--- archtecture is x86_64
--- Configuring done
--- Generating done
--- Build files have been written to: /home/y-watanabe/proxy-transaction-provider/cmake-build-debug
+CMake Error at CMakeLists.txt:45:
+  Parse error.  Expected a command name, got unquoted argument with text
+  "src/transaction/result.h++".
+
+
+-- Configuring incomplete, errors occurred!

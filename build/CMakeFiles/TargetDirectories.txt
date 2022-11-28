@@ -1,4 +1,0 @@
-/home/y-watanabe/proxy-transaction-provider/build/CMakeFiles/rebuild_cache.dir
-/home/y-watanabe/proxy-transaction-provider/build/CMakeFiles/edit_cache.dir
-/home/y-watanabe/proxy-transaction-provider/build/CMakeFiles/client.dir
-/home/y-watanabe/proxy-transaction-provider/build/CMakeFiles/tcpproxy_server.dir

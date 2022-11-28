@@ -3,6 +3,7 @@ cassandra-cpp-driver/2.15.3
 boost/1.71.0
 sqlite3/3.39.0
 libpq/14.5
+zlib/1.2.12
 
 [generators]
 cmake

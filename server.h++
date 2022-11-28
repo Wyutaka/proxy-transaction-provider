@@ -49,7 +49,6 @@ namespace tcp_proxy {
         boost::mutex mutex_;
         static constexpr char* backend_host = "127.0.0.1";
         static constexpr char*  backend_postgres_conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
-
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
