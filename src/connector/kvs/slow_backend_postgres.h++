@@ -22,13 +22,6 @@
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
 
-#define CASS_SHARED_PTR(type, v)                                                                   \
-    std::shared_ptr<std::remove_pointer_t<decltype(v)>>(v, [](decltype(v) t) {                     \
-        if (t)                                                                                     \
-            cass_##type##_free(t);                                                                 \
-    })
-
-
 static void
 exit_nicely(PGconn *conn)
 {
@@ -43,10 +36,11 @@ namespace transaction {
         boost::shared_ptr<tcp_proxy::bridge> _bridge;
         std::shared_ptr<CassFuture> _connectFuture;
         PGconn* _conn;
+        std::queue<std::string> q_queue;
 
     public:
-        explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn* conn)
-                : _connectFuture(), _conn(conn), _bridge(bridge) {
+        explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn* conn, std::queue<std::string> &query_queue)
+                : _connectFuture(), _conn(conn), _bridge(bridge), q_queue(query_queue) {
 
         }
 
@@ -58,45 +52,31 @@ namespace transaction {
         }
 
     private:
+        void sendQuery(PGconn* conn, const Request &req)
+        {
+
+            PGresult *res;
+            char *query;
+            query = (char*)calloc(15+ req.query().query().size(), sizeof(char));
+            sprintf(query, "BEGIN;%s;COMMIT", req.query().query().data());
+            PQsendQuery(_conn,  query);
+//            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+//            {
+//                fprintf(stderr, req.query().query().data(), PQerrorMessage(_conn));
+//                PQclear(res);
+//                exit_nicely(_conn);
+//            }
+//            PQclear(res);
+
+        }
 
     public:
         // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req) {
 
-            PGresult *res;
+            auto th1 = std::thread([this, &req]{sendQuery(_conn, req);});
 
-            res = PQexec(_conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
-                fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
-                PQclear(res);
-                exit_nicely(_conn);
-            }
-
-            /*
-             * 不要になったら、メモリリークを防ぐためにPGresultをPQclearすべき。
-             */
-            PQclear(res);
-
-            /*
-             * データベースのシステムカタログpg_databaseから行を取り出す。
-             */
-            res = PQexec(_conn, req.query().query().data());
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
-                fprintf(stderr, req.query().query().data(), PQerrorMessage(_conn));
-                PQclear(res);
-                exit_nicely(_conn);
-            }
-            PQclear(res);
-
-            /* トランザクションを終了する */
-            res = PQexec(_conn, "END");
-            PQclear(res);
-
-//            /* データベースとの接続を閉じ、後始末を行う。 */
-//            PQfinish(_conn);
-
+            th1.join();
             return Response({CoResponse(Status::Ok)});;
         }
     };

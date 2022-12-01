@@ -58,6 +58,8 @@ namespace tcp_proxy {
                             PQerrorMessage(_conn));
                     exit_nicely(_conn);
                 }
+
+                query_queue.push("hoge");
     }
 
     bridge::~bridge() {
@@ -222,15 +224,15 @@ namespace tcp_proxy {
                 n += (int)downstream_data_[4];
 
                 // lock層の生成(postgres用)
-                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::PostgresConnector>> lock{transaction::TransactionProviderImpl<transaction::PostgresConnector>(transaction::PostgresConnector(shared_from_this(), _conn))};
+                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::PostgresConnector>> lock{transaction::TransactionProviderImpl<transaction::PostgresConnector>(transaction::PostgresConnector(shared_from_this(), _conn, query_queue))};
                 // リクエストの生成
                 const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[5]), n - 4), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred)); // n-4 00まで含める｀h
                 // レスポンス生成
                 const auto& res = lock(req);
 
-                if (res[0].status() == transaction::Status::Ok) {
-                    std::cout << "you got Status OK" << std::endl;
-                }
+                // if (res[0].status() == transaction::Status::Ok) {
+                //     std::cout << "Status OK" << std::endl;
+                // }
 
                 /* TODO クエリに対するリクエストを返す
                      クライアントに返す文字列の形式: <C/Z
@@ -256,19 +258,19 @@ namespace tcp_proxy {
                  */
 
 
-//                unsigned char res_postgres[16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00, // C
-//                                                    0x5a, 0x00, 0x00, 0x00, 0x05, 0x54 // Z
-//                                               };
-                unsigned char res_postgres[154] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42, 0x00,
-                                                   0x00, 0x01,0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x66, 0x69,
-                                                   0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00,
-                                                   0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32, 0x00, 0x00, 0x00,
-                                                   0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
-                                                   0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
-                                                   0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x68, 0x75, 0x67, 0x61,
-                                                   0x00, 0x00, 0x00, 0x01, 0x31, 0x00, 0x00, 0x00, 0x01, 0x32, 0x00, 0x00, 0x00, 0x01, 0x33,
-                                                   0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00,
-                                                   0x5a, 0x00, 0x00, 0x00, 0x05, 0x49};
+               unsigned char res_postgres[16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00, // C
+                                                   0x5a, 0x00, 0x00, 0x00, 0x05, 0x54 // Z
+                                              };
+                // unsigned char res_postgres[154] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42, 0x00,
+                //                                    0x00, 0x01,0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x66, 0x69,
+                //                                    0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00,
+                //                                    0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32, 0x00, 0x00, 0x00,
+                //                                    0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
+                //                                    0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+                //                                    0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x68, 0x75, 0x67, 0x61,
+                //                                    0x00, 0x00, 0x00, 0x01, 0x31, 0x00, 0x00, 0x00, 0x01, 0x32, 0x00, 0x00, 0x00, 0x01, 0x33,
+                //                                    0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00,
+                //                                    0x5a, 0x00, 0x00, 0x00, 0x05, 0x49};
 
 //                unsigned char *ptr = &(res_postgres[0]);
 
@@ -277,23 +279,24 @@ namespace tcp_proxy {
 //                    std::cout << "status ERROR" << std::endl;
 //                    res_postgres[21] = 0x45;
 //                }
-                for (auto itr = res.begin(); itr < res.end(); itr++) {
-                    std::cout << (int)itr->status() << std::endl;
-                    switch (itr->status()) {
-                        case transaction::Status::Result:
-                            std::cout << "result" << std::endl;
-                            break;
-                        case transaction::Status::Pending:
-                            std::cout << "pending" << std::endl;
-                            break;
+                // for (auto itr = res.begin(); itr < res.end(); itr++) {
+                //     std::cout << (int)itr->status() << std::endl;
+                //     switch (itr->status()) {
+                //         case transaction::Status::Result:
+                //             std::cout << "result" << std::endl;
+                //             break;
+                //         case transaction::Status::Pending:
+                //             std::cout << "pending" << std::endl;
+                //             break;
 
-                    }
-                }
-                if(res.end()->status() == transaction::Status::Result) {
-                    std::cout << "result is arimasu" << std::endl;
-                }
-                std::vector<unsigned char> data = res.end()->get_raw_response(); // この辺がおかしい
-                debug::hexdump(reinterpret_cast<const char *>(data.data()), data.size());
+                //     }
+                // }
+
+                // if(res.end()->status() == transaction::Status::Result) {
+                //     std::cout << "result is arimasu" << std::endl;
+                //     std::vector<unsigned char> data = res.end()->get_raw_response(); // この辺がおかしい
+                //     debug::hexdump(reinterpret_cast<const char *>(data.data()), data.size());
+                // }
 
                 // TODO 失敗、成功をレスポンスから判定して返す
                 // レスポンス帰る前に送ってる？？

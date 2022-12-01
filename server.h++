@@ -10,6 +10,7 @@
 #include <boost/thread/mutex.hpp>
 #include <cassandra.h>
 #include <libpq-fe.h>
+#include <queue>
 
 
 namespace tcp_proxy {
@@ -47,14 +48,15 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;
-        static constexpr char* backend_host = "127.0.0.1";
-        static constexpr char*  backend_postgres_conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        static constexpr char* backend_host = "192.168.12.23";
+        static constexpr char*  backend_postgres_conninfo = "host=192.168.12.23 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
         std::shared_ptr<CassCluster> _cluster;
         std::shared_ptr<CassSession> _session;
         PGconn *_conn;
+        std::queue<std::string> query_queue;
 
     // inner class
     public:

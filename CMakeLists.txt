@@ -60,7 +60,7 @@ link_directories( ${CONAN_INCLUDE_DIRS})
 
 target_link_libraries(tcpproxy_server ${CONAN_LIBS})
 target_link_libraries(tcpproxy_server sqlite3)
-target_link_libraries(tcpproxy_server pqxx)
+target_link_libraries(tcpproxy_server pq)
 
 target_link_libraries(client ${CONAN_LIBS})
 
