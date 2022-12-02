@@ -37,11 +37,12 @@ add_executable(tcpproxy_server
         src/lock/shared_mutex.h++ src/test/search.h++
         src/test/search.h++
         src/test/DumpHex.h++
-        src/transaction/result.h++)
+        src/transaction/result.h++
+        src/ThreadPool/ThreadPool.h++)
 
 add_executable(client
         src/test/client.cpp
-        src/connector/kvs/slow_backend_postgres.h++)
+        src/connector/kvs/slow_backend_postgres.h++ src/ThreadPool/ThreadPool.h++)
 
 include_directories(tcpproxy_server ${CONAN_INCLUDE_DIRS})
 include_directories(client ${CONAN_INCLUDE_DIRS})

@@ -16,6 +16,7 @@
 #include "./src/connector/kvs/cassprotocol.h++"
 #include "./src/reqestresponse/Constants.h++"
 #include "src/connector/kvs/slow_postgres.h++"
+#include "src/ThreadPool/ThreadPool.h++"
 
 #define CASS_SHARED_PTR(type, v)                                                                   \
     std::shared_ptr<std::remove_pointer_t<decltype(v)>>(v, [](decltype(v) t) {                     \
@@ -33,7 +34,8 @@ namespace tcp_proxy {
             upstream_port_(upstream_port_),
             _connectFuture(NULL),
             _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
-            _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter()))
+            _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
+            thread_pool_executor(pool::ThreadPoolExecutor(1))
             {
                 // cassandraのコネクション
                 // 注意：keyspaceは決め打ち
@@ -58,8 +60,6 @@ namespace tcp_proxy {
                             PQerrorMessage(_conn));
                     exit_nicely(_conn);
                 }
-
-                query_queue.push("hoge");
     }
 
     bridge::~bridge() {
@@ -155,6 +155,35 @@ namespace tcp_proxy {
     {
         std::for_each(std::begin(c), std::end(c), [&os](typename C::value_type p) { os << '{' << p.first << ',' << &p.second << "}, "; });
         os << std::endl;
+    }
+
+    void bridge::send_queue_backend(std::queue<std::string>& queue, PGconn* conn) {
+        PGresult *res;
+        res = PQexec(conn, "BEGIN");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK)
+        {
+            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(conn));
+            PQclear(res);
+            exit_nicely(conn);
+        }
+        PQclear(res);
+
+        while(queue.size() == 0) {
+            std::string_view query = queue.front();
+            res = PQexec(conn,  query.data());
+            if (PQresultStatus(res) != PGRES_COMMAND_OK)
+            {
+                fprintf(stderr, query.data(), PQerrorMessage(conn));
+                PQclear(res);
+                exit_nicely(conn);
+            }
+            queue.pop();
+            PQclear(res);
+        }
+
+        /* トランザクションを終了する */
+        res = PQexec(conn, "END");
+        PQclear(res);
     }
 
     void bridge::handle_downstream_read(const boost::system::error_code& error,

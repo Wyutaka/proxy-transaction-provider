@@ -34,8 +34,6 @@ namespace transaction {
                 : _queries(std::move(queries))
                 , _peer(std::move(p))
                 , _raw_request(raw_request) {
-//            std::cout << "raw_request in req req: " << std::endl; // ここはいける
-//            debug::hexdump(_raw_request.data(), _raw_request.size());
         }
         Request(Peer p, Query query, std::string_view raw_request)
                 : Request(std::move(p), std::vector<Query>{query}, raw_request) {
@@ -51,13 +49,8 @@ namespace transaction {
         [[nodiscard]] auto end() const { return std::end(_queries); }
 
     public:
-//        [[nodiscard]] const std::vector<Query> &queries() const { return _queries; }
         [[nodiscard]] const std::vector<Query> queries() const { return _queries; }
         [[nodiscard]] const Query &query() const {
-            // 正しい値が遅れない
-//            std::cout << "query.size()" << _queries.size() << std::endl;
-//            std::cout << "in Request req.query()" << _queries[0].query() << std::endl;
-
             return _queries[0]; }
         [[nodiscard]] std::string raw_request() const {
             return _raw_request; }

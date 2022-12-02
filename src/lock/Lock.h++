@@ -18,6 +18,21 @@ namespace transaction::lock {
         private:
             using Ul = std::unique_lock<detail::shared_mutex>;
             using Sl = detail::shared_lock<detail::shared_mutex>;
+            NextF _next; // transaction
+            detail::MyAtomicFlag _lock;
+            std::unique_ptr<detail::shared_mutex> _mutex;
+            Peer _currentLocker;
+
+            bool _getLock(const Peer &peer) {
+                // ip port
+
+                if (_lock.test_and_set() == true) {
+                    return false;
+                }
+                Ul ul(*_mutex);
+                _currentLocker = peer;
+                return true;
+            }
 
         public:
             explicit Lock(NextF next)
@@ -33,19 +48,16 @@ namespace transaction::lock {
                 if (!_getLock(req.peer())) {
                     return Response({CoResponse(Status::Error)});
                 } else {
-                    // std::cout << "lock successed!!!!!!!!" << std::endl;
                     return Response({CoResponse(Status::Ok)});
                 }
             } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
                 if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
                     return Response({CoResponse(Status::Error)});
                 }
-//                    auto res = _next(req);
                 _lock.clear();
-                    return Response({CoResponse(Status::Ok)});
+                return Response({CoResponse(Status::Commit)});
             } else if (_lock.test()) {
-
-                    Sl sl(*_mutex);
+                Sl sl(*_mutex);
                 if (req.peer() != _currentLocker) {
                     return Response({CoResponse(Status::Error)});
                 }
@@ -53,26 +65,6 @@ namespace transaction::lock {
             return _next(req);
             }
 
-
-        private:
-            bool _getLock(const Peer &peer) {
-                // ip port
-
-                if (_lock.test_and_set() == true) {
-                    return false;
-                }
-
-                Ul ul(*_mutex);
-
-                _currentLocker = peer;
-
-                return true;
-            }
-
-            NextF _next; // transaction
-            detail::MyAtomicFlag _lock;
-            std::unique_ptr<detail::shared_mutex> _mutex;
-            Peer _currentLocker;
         };
     }
 #endif //MY_PROXY_LOCK_H

@@ -36,19 +36,12 @@ namespace transaction {
         boost::shared_ptr<tcp_proxy::bridge> _bridge;
         std::shared_ptr<CassFuture> _connectFuture;
         PGconn* _conn;
-        std::queue<std::string> q_queue;
+        std::queue<std::string> _query_queue;
 
     public:
         explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn* conn, std::queue<std::string> &query_queue)
-                : _connectFuture(), _conn(conn), _bridge(bridge), q_queue(query_queue) {
+                : _connectFuture(), _conn(conn), _bridge(bridge), _query_queue(query_queue) {
 
-        }
-
-
-        ~PostgresConnector() {
-//            _connectFuture.reset();
-//            _session.reset();
-//            _cluster.reset();
         }
 
     private:
@@ -74,9 +67,7 @@ namespace transaction {
         // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req) {
 
-            auto th1 = std::thread([this, &req]{sendQuery(_conn, req);});
-
-            th1.join();
+            _query_queue.push(req.query().query().data());
             return Response({CoResponse(Status::Ok)});;
         }
     };

@@ -21,12 +21,12 @@ namespace transaction {
 
     using Row = std::unordered_map<std::string, RowData>; // row_name , data
 
-    // TODO Peer.hppで定義されてるからいらないかも
     enum class Status {
         Error = 0,
         Ok,
         Result,
-        Pending // 非同期にバックエンドに送信中
+        Pending, // 非同期にバックエンドに送信中
+        Commit
     };
 
     class CoResponse {

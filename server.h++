@@ -11,6 +11,7 @@
 #include <cassandra.h>
 #include <libpq-fe.h>
 #include <queue>
+#include "src/ThreadPool/ThreadPool.h++"
 
 
 namespace tcp_proxy {
@@ -42,6 +43,7 @@ namespace tcp_proxy {
     private:
         void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
         void handle_downstream_write(const boost::system::error_code& error);
+        void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
         socket_type downstream_socket_;
 
         enum { max_data_length = 8192 * 2 }; //16KB
@@ -57,6 +59,8 @@ namespace tcp_proxy {
         std::shared_ptr<CassSession> _session;
         PGconn *_conn;
         std::queue<std::string> query_queue;
+        std::unique_ptr<std::thread[]> send_queue_threads;
+        pool::ThreadPoolExecutor thread_pool_executor;
 
     // inner class
     public:
