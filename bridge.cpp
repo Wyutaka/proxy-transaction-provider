@@ -58,6 +58,15 @@ namespace tcp_proxy {
                             PQerrorMessage(_conn));
                     exit_nicely(_conn);
                 }
+
+        _conn_for_send_query_backend = PQconnectdb(backend_postgres_conninfo);
+        /* バックエンドとの接続確立に成功したかを確認する */
+        if (PQstatus(_conn_for_send_query_backend) != CONNECTION_OK)
+        {
+            fprintf(stderr, "Connection to database failed: %s",
+                    PQerrorMessage(_conn_for_send_query_backend));
+            exit_nicely(_conn_for_send_query_backend);
+        }
     }
 
     bridge::~bridge() {
@@ -165,8 +174,7 @@ namespace tcp_proxy {
             exit_nicely(conn);
         }
         PQclear(res);
-
-        while(queue.empty()) {
+        while(!queue.empty()) {
             std::string_view query = queue.front();
             res = PQexec(conn,  query.data());
             if (PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -210,7 +218,7 @@ namespace tcp_proxy {
                     const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred));
 
                     // レイヤー移動
-                    const auto& res = lock(req, write_ahead_log);
+                    const auto& res = lock(req, write_ahead_log, query_queue);
 
                     if (res.begin()->status() == transaction::Status::Ok) {// レスポンスでOKが帰って来たとき(begin,commitを想定)
                         std::cout << "status ok" << std::endl;
@@ -251,11 +259,11 @@ namespace tcp_proxy {
                 n += (int)downstream_data_[4];
 
                 // lock層の生成(postgres用)
-                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::PostgresConnector>> lock{transaction::TransactionProviderImpl<transaction::PostgresConnector>(transaction::PostgresConnector(shared_from_this(), _conn, query_queue))};
+                transaction::lock::Lock<transaction::TransactionProviderImpl<transaction::PostgresConnector>> lock{transaction::TransactionProviderImpl<transaction::PostgresConnector>(transaction::PostgresConnector(shared_from_this(), _conn))};
                 // リクエストの生成
                 const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[5]), n - 4), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred)); // n-4 00まで含める｀h
                 // レスポンス生成
-                const auto& res = lock(req, write_ahead_log);
+                const auto& res = lock(req, write_ahead_log, query_queue);
 
                 // if (res[0].status() == transaction::Status::Ok) {
                 //     std::cout << "Status OK" << std::endl;
@@ -300,6 +308,10 @@ namespace tcp_proxy {
                 //                                    0x5a, 0x00, 0x00, 0x00, 0x05, 0x49};
 
 //                unsigned char *ptr = &(res_postgres[0]);
+                if (res.front().status() == transaction::Status::Commit) {
+//                    std::cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" << std::endl;
+                    auto future = queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
+                }
 
 
 //                if (res.front().status() == transaction::Status::Error) {
@@ -307,9 +319,7 @@ namespace tcp_proxy {
 //                    res_postgres[21] = 0x45;
 //                }
 
-                if (res.front().status() == transaction::Status::Commit) {
-                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn);});
-                }
+
                 // for (auto itr = res.begin(); itr < res.end(); itr++) {
                 //     std::cout << (int)itr->status() << std::endl;
                 //     switch (itr->status()) {
@@ -345,6 +355,7 @@ namespace tcp_proxy {
                                     shared_from_this(),
                                     boost::asio::placeholders::error,
                                     boost::asio::placeholders::bytes_transferred));
+
 
 
 //                async_write(upstream_socket_,

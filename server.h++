@@ -38,7 +38,7 @@ namespace tcp_proxy {
                                     const size_t& bytes_transferred);
         // Write to remote server complete, Async read from client
         void handle_upstream_write(const boost::system::error_code& error);
-        void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
+        static void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
         socket_type upstream_socket_;
 
     private:
@@ -50,17 +50,18 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;
-        static constexpr char* backend_host = "192.168.12.23";
-        static constexpr char*  backend_postgres_conninfo = "host=192.168.12.23 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        static constexpr char* backend_host = "127.0.0.1";
+        static constexpr char*  backend_postgres_conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
         std::shared_ptr<CassCluster> _cluster;
         std::shared_ptr<CassSession> _session;
         PGconn *_conn;
+        PGconn *_conn_for_send_query_backend;
         std::queue<std::string> query_queue;
         pool::ThreadPoolExecutor queue_sender;
-        static constexpr char* write_ahead_log = "wal.csv";
+        static constexpr char* write_ahead_log = "/home/user1/proxy-transaction-provider/build/wal.csv";
 
     // inner class
     public:

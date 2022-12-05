@@ -48,7 +48,7 @@ namespace transaction::lock {
 
 //            Response operator()(const Request &req);
 
-            Response operator()(const Request &req, std::string_view wal_file_name) {
+            Response operator()(const Request &req, std::string_view wal_file_name,  std::queue<std::string> &query_queue) {
                 using pipes::operator|;
             // const auto query = req.query() | tolower;
 
@@ -71,6 +71,7 @@ namespace transaction::lock {
                 }
             }
             write_query_to_wal(wal_file_name.data(), req.query().query().data());
+            query_queue.push(req.query().query().data());
             return _next(req);
             }
 
