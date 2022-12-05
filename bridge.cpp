@@ -29,13 +29,13 @@ namespace tcp_proxy {
     typedef boost::shared_ptr<bridge> ptr_type;
     bridge::bridge(boost::asio::io_service& ios, unsigned short upstream_port
             , std::string upstream_host): downstream_socket_(ios),
-            upstream_socket_(ios),
-            upstream_host_(upstream_host_),
-            upstream_port_(upstream_port_),
-            _connectFuture(NULL),
-            _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
-            _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
-            thread_pool_executor(pool::ThreadPoolExecutor(1))
+                                          upstream_socket_(ios),
+                                          upstream_host_(upstream_host_),
+                                          upstream_port_(upstream_port_),
+                                          _connectFuture(NULL),
+                                          _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
+                                          _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
+                                          queue_sender(pool::ThreadPoolExecutor(1))
             {
                 // cassandraのコネクション
                 // 注意：keyspaceは決め打ち
@@ -49,10 +49,8 @@ namespace tcp_proxy {
                     std::terminate();
                 }
 
-//                // TODO postgresのコネクションを作成
-
+//                // postgresのコネクションを作成
                 _conn = PQconnectdb(backend_postgres_conninfo);
-
                 /* バックエンドとの接続確立に成功したかを確認する */
                 if (PQstatus(_conn) != CONNECTION_OK)
                 {
@@ -168,7 +166,7 @@ namespace tcp_proxy {
         }
         PQclear(res);
 
-        while(queue.size() == 0) {
+        while(queue.empty()) {
             std::string_view query = queue.front();
             res = PQexec(conn,  query.data());
             if (PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -212,7 +210,7 @@ namespace tcp_proxy {
                     const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[13]), n), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred));
 
                     // レイヤー移動
-                    const auto& res = lock(req);
+                    const auto& res = lock(req, write_ahead_log);
 
                     if (res.begin()->status() == transaction::Status::Ok) {// レスポンスでOKが帰って来たとき(begin,commitを想定)
                         std::cout << "status ok" << std::endl;
@@ -257,7 +255,7 @@ namespace tcp_proxy {
                 // リクエストの生成
                 const transaction::Request& req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), std::string(reinterpret_cast<const char *>(&downstream_data_[5]), n - 4), std::string(reinterpret_cast<const char *>(&downstream_data_), bytes_transferred)); // n-4 00まで含める｀h
                 // レスポンス生成
-                const auto& res = lock(req);
+                const auto& res = lock(req, write_ahead_log);
 
                 // if (res[0].status() == transaction::Status::Ok) {
                 //     std::cout << "Status OK" << std::endl;
@@ -308,6 +306,10 @@ namespace tcp_proxy {
 //                    std::cout << "status ERROR" << std::endl;
 //                    res_postgres[21] = 0x45;
 //                }
+
+                if (res.front().status() == transaction::Status::Commit) {
+                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn);});
+                }
                 // for (auto itr = res.begin(); itr < res.end(); itr++) {
                 //     std::cout << (int)itr->status() << std::endl;
                 //     switch (itr->status()) {

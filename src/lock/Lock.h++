@@ -12,6 +12,7 @@
 #include "src/reqestresponse/Request.h++"
 #include "detail.h++"
 #include "shared_mutex.h++"
+#include <fstream>
 
 namespace transaction::lock {
         template<class NextF> class Lock {
@@ -34,13 +35,20 @@ namespace transaction::lock {
                 return true;
             }
 
+            void write_query_to_wal(const std::basic_string<char>& wal_name, std::string_view query) {
+                std::ofstream writing_file;
+                writing_file.open(wal_name, std::ios::app);
+                writing_file << query << std::endl;
+                writing_file.close();
+            }
+
         public:
             explicit Lock(NextF next)
                     : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
 
 //            Response operator()(const Request &req);
 
-            Response operator()(const Request &req) {
+            Response operator()(const Request &req, std::string_view wal_file_name) {
                 using pipes::operator|;
             // const auto query = req.query() | tolower;
 
@@ -62,6 +70,7 @@ namespace transaction::lock {
                     return Response({CoResponse(Status::Error)});
                 }
             }
+            write_query_to_wal(wal_file_name.data(), req.query().query().data());
             return _next(req);
             }
 

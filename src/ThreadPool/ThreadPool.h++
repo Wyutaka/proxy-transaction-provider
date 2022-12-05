@@ -21,7 +21,7 @@ namespace pool {
 
     private:
         mutable std::mutex tasks_queue_mutex{}; // tasksへのアクセスを排他的にする
-        std::atomic<bool> is_pool_executor_running{true};
+        std::atomic<bool> is_pool_executor_running{true}; // たいきちゅうのすれっどをかくじつにかんりするため？
         std::queue<std::function<void()>> tasks{};
         const ui32 thread_count_;
         std::unique_ptr<std::thread[]> threads;
@@ -53,8 +53,15 @@ namespace pool {
             return thread_count_;
         }
 
-        template<typename F, typename... Args, typename R = typename std::result_of<std::decay_t<F>(
-                std::decay_t<Args>...)>::type>
+#if ((defined(_MSVC_LANG) && _MSVC_LANG >= 201703L) || __cplusplus >= 201703L)
+        /**
+        * @brief Submit a function with zero or more arguments and a return value into the task queue,
+        * and get a future for its eventual returned value.
+        */
+        template <typename F, typename... Args, typename R = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>>
+#else
+        template <typename F, typename... Args, typename R = typename std::result_of<std::decay_t<F>(std::decay_t<Args>...)>::type>
+#endif
         std::future<R> submit(F &&func, const Args &&... args) {
             auto task = std::make_shared<std::packaged_task<R()>>([func, args...]() {
                 return func(args...);

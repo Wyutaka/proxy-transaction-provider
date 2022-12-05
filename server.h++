@@ -38,12 +38,12 @@ namespace tcp_proxy {
                                     const size_t& bytes_transferred);
         // Write to remote server complete, Async read from client
         void handle_upstream_write(const boost::system::error_code& error);
+        void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
         socket_type upstream_socket_;
 
     private:
         void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
         void handle_downstream_write(const boost::system::error_code& error);
-        void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
         socket_type downstream_socket_;
 
         enum { max_data_length = 8192 * 2 }; //16KB
@@ -59,8 +59,8 @@ namespace tcp_proxy {
         std::shared_ptr<CassSession> _session;
         PGconn *_conn;
         std::queue<std::string> query_queue;
-        std::unique_ptr<std::thread[]> send_queue_threads;
-        pool::ThreadPoolExecutor thread_pool_executor;
+        pool::ThreadPoolExecutor queue_sender;
+        static constexpr char* write_ahead_log = "wal.csv";
 
     // inner class
     public:
