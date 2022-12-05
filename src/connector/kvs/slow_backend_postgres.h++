@@ -66,7 +66,10 @@ namespace transaction {
         // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req) {
 
-//            _query_queue.push(req.query().query().data());
+            if (req.query().isSelect()) {
+                return Response({CoResponse(Status::Result)});
+            }
+
             return Response({CoResponse(Status::Ok)});;
         }
     };

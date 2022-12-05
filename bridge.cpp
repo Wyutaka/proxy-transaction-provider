@@ -309,8 +309,7 @@ namespace tcp_proxy {
 
 //                unsigned char *ptr = &(res_postgres[0]);
                 if (res.front().status() == transaction::Status::Commit) {
-//                    std::cout << "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" << std::endl;
-                    auto future = queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
+                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
                 }
 
 
@@ -333,6 +332,7 @@ namespace tcp_proxy {
                 //     }
                 // }
 
+                // Dの追加
                 // if(res.end()->status() == transaction::Status::Result) {
                 //     std::cout << "result is arimasu" << std::endl;
                 //     std::vector<unsigned char> data = res.end()->get_raw_response(); // この辺がおかしい
