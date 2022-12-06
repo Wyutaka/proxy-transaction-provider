@@ -263,6 +263,13 @@
                 detail::SetBytes(message_size, bytes_, column);
             }
 
+            void end_message() {
+
+            }
+
+            void next_nessage() {
+
+            }
 
             std::vector<unsigned char>& bytes() noexcept {
                 auto len_be = htobe32(message_size);

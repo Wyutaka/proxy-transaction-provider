@@ -339,14 +339,46 @@ namespace tcp_proxy {
                 //     debug::hexdump(reinterpret_cast<const char *>(data.data()), data.size());
                 // }
 
-                // TODO 失敗、成功をレスポンスから判定して返す
-                // レスポンス帰る前に送ってる？？
-                // クライアントにレスポンスを返す
-                async_write(downstream_socket_,
-                            boost::asio::buffer(res_postgres,154), // result_okの文字列長
-                            boost::bind(&bridge::handle_downstream_write,
-                                        shared_from_this(),
-                                        boost::asio::placeholders::error));
+                std::vector<unsigned char> result;
+                if (res.front().status() == transaction::Status::Result) {
+//                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
+//                    auto D = res.front().get_raw_response();
+                    auto Ds = res.front().get_results();
+                    for (unsigned char i : response::sysbench_tbl_header) {
+                        result.push_back(i);
+                    }
+                    while(!Ds.empty()) {
+                        std::vector<unsigned char> D = Ds.front().bytes();
+                        for (unsigned char & i : D) {
+                            result.push_back(i);
+                        }
+                        Ds.pop();
+                    }
+                    for (unsigned char i : response::sysbench_slct_cmd) {
+                        result.push_back(i);
+                    }
+                    for (unsigned char i : response::sysbench_status) {
+                        result.push_back(i);
+                    }
+
+                }
+
+                if(res.front().status() == transaction::Status::Result) {
+                    async_write(downstream_socket_,
+                                boost::asio::buffer(result.data(),result.size()), // result_okの文字列長
+                                boost::bind(&bridge::handle_downstream_write,
+                                            shared_from_this(),
+                                            boost::asio::placeholders::error));
+                } else {
+                    // TODO 失敗、成功をレスポンスから判定して返す
+                    // レスポンス帰る前に送ってる？？
+                    // クライアントにレスポンスを返す
+                    async_write(downstream_socket_,
+                                boost::asio::buffer(res_postgres, 154), // result_okの文字列長
+                                boost::bind(&bridge::handle_downstream_write,
+                                            shared_from_this(),
+                                            boost::asio::placeholders::error));
+                }
 
                 // クライアントからの読み込みを開始 (downstream)
                 downstream_socket_.async_read_some(
