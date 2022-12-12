@@ -143,7 +143,7 @@ namespace transaction {
 
     public:
         // ここをプロキシ(bridge)に置き換える
-        Response operator()(const Request &req) {
+        Response operator()(const Request &req, sqlite3 *in_mem_db) {
             const auto& raw_request = req.raw_request();
             std::cout << "raw_request: " << req.query().query() << std::endl;
 //            std::cout << "transaction" << std::endl;

@@ -12,6 +12,7 @@
 #include <libpq-fe.h>
 #include <queue>
 #include "src/ThreadPool/ThreadPool.h++"
+#include <sqlite3.h>
 
 
 namespace tcp_proxy {
@@ -61,6 +62,7 @@ namespace tcp_proxy {
         PGconn *_conn_for_send_query_backend;
         std::queue<std::string> query_queue;
         pool::ThreadPoolExecutor queue_sender;
+        sqlite3 *in_mem_db;
         static constexpr char* write_ahead_log = "/home/user1/proxy-transaction-provider/build/wal.csv";
 
     // inner class

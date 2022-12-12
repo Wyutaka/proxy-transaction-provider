@@ -40,7 +40,6 @@ namespace transaction {
     public:
         explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn* conn)
                 : _connectFuture(), _conn(conn), _bridge(bridge) {
-
         }
 
     private:
@@ -114,16 +113,40 @@ namespace transaction {
         }
 
     public:
-        // ここをプロキシ(bridge)に置き換える
-        Response operator()(const Request &req) {
-
+        Response operator()(const Request &req, sqlite3 *in_mem_db) {
             if (req.query().isSelect()) {
+                int ret;
+                char **err;
+
+                sqlite3_stmt *statement = nullptr;
+                int prepare_rc = sqlite3_prepare_v2(in_mem_db, "select * from bench;", -1, &statement, nullptr);
+                if (prepare_rc == SQLITE_OK) {
+                    std::cout << "hogehoge" << std::endl;
+                    if (sqlite3_step(statement) == SQLITE_ROW) {
+                        for (int i = 0; i < sqlite3_column_count(statement); i++) {
+                            std::string column_name = sqlite3_column_name(statement, i);
+                            int columnType = sqlite3_column_type(statement, i);
+                            if (columnType == SQLITE_INTEGER) {
+                                std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
+                                continue;
+                            }
+                        }
+                    }
+                } else {
+                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
+                }
+                sqlite3_reset(statement);
+                sqlite3_finalize(statement);
+                sqlite3_reset(statement);
+                sqlite3_finalize(statement);
+
                 std::queue<response::Sysbench> results;
                 appned_backend_result_to_response(_conn, req, results);
                 auto res = Response({CoResponse(Status::Result)});
                 res.begin()->set_results(results);
                 return res;
             }
+
 
             return Response({CoResponse(Status::Ok)});;
         }

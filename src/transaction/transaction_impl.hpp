@@ -40,6 +40,10 @@ namespace transaction {
                 : _states(),
                   _next(std::move(kc)) {}
 
+        TransactionProviderImpl(PostgresConnector kc, sqlite3 *in_mem_db)
+                : _states(),
+                  _next(std::move(kc), &in_mem_db) {}
+
     // Response -> std::vector<CoResponse>
     Response next(const Request &request) { return _next(request); } // from_upstream_to downstream
 
@@ -85,7 +89,7 @@ namespace transaction {
             return {CoResponse(Status::Ok)};
         }
 
-        Response operator()(Request req) {
+        Response operator()(Request req, sqlite3 &in_mem_db) { // これ何？
             const auto &query = req.query();
 
             switch (query.type()) {
