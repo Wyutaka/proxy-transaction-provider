@@ -208,8 +208,7 @@ namespace tcp_proxy {
             int n = 0;
 
             // Cassandraのコード
-            if (downstream_data_[0] == 0x04 &&
-                downstream_data_[4] == cassprotocol::opcode::QUERY) { //is cassandra request version
+            if (downstream_data_[0] == 0x04 && downstream_data_[4] == cassprotocol::opcode::QUERY) { //is cassandra request version
 //                std::cout << "cql detected" << std::endl;
                 n = (int) downstream_data_[5] << 24;
                 n += (int) downstream_data_[6] << 16;
@@ -258,7 +257,7 @@ namespace tcp_proxy {
                                             boost::asio::placeholders::bytes_transferred));
                     }
                 }
-                // postgresのコード
+                // postgresのQueryメッセージ
             } else if (downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
 
 //                std::cout << "postgres" << std::endl;
@@ -281,82 +280,15 @@ namespace tcp_proxy {
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
 
-                // if (res[0].status() == transaction::Status::Ok) {
-                //     std::cout << "Status OK" << std::endl;
-                // }
-
-                /* TODO クエリに対するリクエストを返す
-                     クライアントに返す文字列の形式: <C/Z
-                     Byte1('C') |  Int32       |  String    |  Byte1('Z')  |  Int32(5)   |  Byte1
-                     C          |   Int32      |  hoge      |      Z       | 00 00 00 05 |  {'I'|'T'|'E'}  ('I'-> not in transaction/'T'-> in transaction/'E'-> 'Error transaction')
-                     43         |  xx xx xx xx | xx xx ...  |      5a      | 00 00 00 05 |  {49/54/45}
-                */
-
-                /* TODO クエリに対するリクエストを返す(select)
-                    クライアントに返す文字列の形式: <T(row description)/D(Data row)/C(Command Completion)/Z(Ready for Query)
-                    bench("huga", 1, 2, 3)
-                    T: length: 103 {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42, 0x00,
-                    0x00, 0x01,0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x66, 0x69,
-                    0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00,
-                    0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32, 0x00, 0x00, 0x00,
-                    0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
-                    0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
-                    0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00}
-                    D: length: 30 {0x44, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x68, 0x75, 0x67, 0x61,
-                            0x00, 0x00, 0x00, 0x01, 0x31, 0x00, 0x00, 0x00, 0x01, 0x32, 0x00, 0x00, 0x00, 0x01, 0x33}
-                    C: length: 14 {0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00}
-                    Z: length: 6 {0x5a, 0x00, 0x00, 0x00, 0x05, 0x49}
-                 */
-
-
                 unsigned char res_postgres[
                         16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20,
                                    0x31, 0x00, // C
                                    0x5a, 0x00, 0x00, 0x00, 0x05, 0x54 // Z
                         };
-                // unsigned char res_postgres[154] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42, 0x00,
-                //                                    0x00, 0x01,0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x66, 0x69,
-                //                                    0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00,
-                //                                    0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32, 0x00, 0x00, 0x00,
-                //                                    0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
-                //                                    0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
-                //                                    0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x68, 0x75, 0x67, 0x61,
-                //                                    0x00, 0x00, 0x00, 0x01, 0x31, 0x00, 0x00, 0x00, 0x01, 0x32, 0x00, 0x00, 0x00, 0x01, 0x33,
-                //                                    0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00,
-                //                                    0x5a, 0x00, 0x00, 0x00, 0x05, 0x49};
 
-//                unsigned char *ptr = &(res_postgres[0]);
                 if (res.front().status() == transaction::Status::Commit) {
                     queue_sender.submit([&]() { send_queue_backend(query_queue, _conn_for_send_query_backend); });
                 }
-
-
-//                if (res.front().status() == transaction::Status::Error) {
-//                    std::cout << "status ERROR" << std::endl;
-//                    res_postgres[21] = 0x45;
-//                }
-
-
-                // for (auto itr = res.begin(); itr < res.end(); itr++) {
-                //     std::cout << (int)itr->status() << std::endl;
-                //     switch (itr->status()) {
-                //         case transaction::Status::Result:
-                //             std::cout << "result" << std::endl;
-                //             break;
-                //         case transaction::Status::Pending:
-                //             std::cout << "pending" << std::endl;
-                //             break;
-
-                //     }
-                // }
-
-                // Dの追加
-                // if(res.end()->status() == transaction::Status::Result) {
-                //     std::cout << "result is arimasu" << std::endl;
-                //     std::vector<unsigned char> data = res.end()->get_raw_response(); // この辺がおかしい
-                //     debug::hexdump(reinterpret_cast<const char *>(data.data()), data.size());
-                // }
-
                 std::vector<unsigned char> result;
                 if (res.front().status() == transaction::Status::Result) {
 //                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
@@ -414,6 +346,33 @@ namespace tcp_proxy {
 //                                        shared_from_this(),
 //                                        boost::asio::placeholders::error));
 
+            // postgresのParseメッセージ(PSの宣言)
+            } else if (downstream_data_[0] == 0x50){
+                // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
+                n = (int) downstream_data_[1] << 24;
+                n += (int) downstream_data_[2] << 16;
+                n += (int) downstream_data_[3] << 8;
+                n += (int) downstream_data_[4];
+
+            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
+                int prepared_statement_id_length = 0;
+                while(downstream_data_[prepared_statement_id_length + 5] != '\0') { // 5はメッセージ形式とメッセージ帳のバイト長だけ進めることを意味する
+                    prepared_statement_id_length++;
+                }
+                std::cout << "hoge : " << prepared_statement_id_length << std::endl;
+                auto prepared_statement_id = std::string(reinterpret_cast<const char *>(&downstream_data_[5]), prepared_statement_id_length);
+                auto prepared_statement_query = std::string(reinterpret_cast<const char *>(&downstream_data_[5 + prepared_statement_id_length]), n - 4 - prepared_statement_id_length);
+
+                prepared_statements_lists.insert(std::make_pair(prepared_statement_id, prepared_statement_query));
+
+                for (auto & prepared_statements_list : prepared_statements_lists) {
+                    std::cout << "itr test :: first_id: " << prepared_statements_list.first << " second_query: " << prepared_statements_list.second << std::endl;
+                }
+                async_write(upstream_socket_,
+                            boost::asio::buffer(downstream_data_, bytes_transferred),
+                            boost::bind(&bridge::handle_upstream_write,
+                                        shared_from_this(),
+                                        boost::asio::placeholders::error));
             } else {
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_, bytes_transferred),

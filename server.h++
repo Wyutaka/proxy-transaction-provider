@@ -63,6 +63,7 @@ namespace tcp_proxy {
         std::queue<std::string> query_queue;
         pool::ThreadPoolExecutor queue_sender;
         sqlite3 *in_mem_db;
+        std::map<std::string, std::string> prepared_statements_lists;
         static constexpr char* write_ahead_log = "/home/user1/proxy-transaction-provider/build/wal.csv";
 
     // inner class
