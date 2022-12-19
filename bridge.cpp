@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <libpq-fe.h>
+#include <variant>
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
@@ -290,19 +291,45 @@ namespace tcp_proxy {
                     queue_sender.submit([&]() { send_queue_backend(query_queue, _conn_for_send_query_backend); });
                 }
                 std::vector<unsigned char> result;
+                // for sysbench
                 if (res.front().status() == transaction::Status::Result) {
 //                    queue_sender.submit([&]() {send_queue_backend(query_queue, _conn_for_send_query_backend);});
 //                    auto D = res.front().get_raw_response();
                     auto Ds = res.front().get_results();
-                    for (unsigned char i: response::sysbench_tbl_header) {
-                        result.push_back(i);
-                    }
-                    while (!Ds.empty()) {
-                        std::vector<unsigned char> D = Ds.front().bytes();
-                        for (unsigned char &i: D) {
+//                    if(req.query().query().data()[])
+                    if(req.query().query()[7] == 'c' || req.query().query()[7] == 'D') {
+                        for (unsigned char i: response::sysbench_tbl_c_header) { // TODO ベンチマーク毎にヘッダ情報を変えないとだめ
                             result.push_back(i);
                         }
+                    } else if(req.query().query()[7] == 's' || req.query().query()[7] == 'S') {
+                        for (unsigned char i: response::sysbench_tbl_sum_header) { // TODO ベンチマーク毎にヘッダ情報を変えないとだめ
+                            result.push_back(i);
+                        }
+                    } else {
+                        for (unsigned char i: response::sysbench_tbl_header) { // TODO ベンチマーク毎にヘッダ情報を変えないとだめ
+                            result.push_back(i);
+                        }
+                    }
+                    while (!Ds.empty()) {
+                        if(Ds.front().index() == 0) {
+                            std::vector<unsigned char> D = std::get<0>(Ds.front()).bytes();
+                            for (unsigned char &i: D) {
+                                result.push_back(i);
+                            }
+                        } else if(Ds.front().index() == 1) {
+                            std::vector<unsigned char> D = std::get<1>(Ds.front()).bytes();
+                            for (unsigned char &i: D) {
+                                result.push_back(i);
+                            }
+                        } else if(Ds.front().index() == 2) {
+                            std::vector<unsigned char> D = std::get<2>(Ds.front()).bytes();
+                            for (unsigned char &i: D) {
+                                result.push_back(i);
+                            }
+                        }
                         Ds.pop();
+                        if (result.size() > 60000) // TODO resent for rest
+                            break;
                     }
                     for (unsigned char i: response::sysbench_slct_cmd) {
                         result.push_back(i);
@@ -310,6 +337,7 @@ namespace tcp_proxy {
                     for (unsigned char i: response::sysbench_status) {
                         result.push_back(i);
                     }
+                    debug::hexdump(reinterpret_cast<const char *>(result.data()), result.size()); // 下流バッファバッファ16進表示
 
                 }
 
@@ -347,7 +375,8 @@ namespace tcp_proxy {
 //                                        boost::asio::placeholders::error));
 
             // postgresのParseメッセージ(PSの宣言)
-            } else if (downstream_data_[0] == 0x50){
+            }
+            else if (downstream_data_[0] == 0x50){
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
                 n = (int) downstream_data_[1] << 24;
                 n += (int) downstream_data_[2] << 16;
@@ -373,7 +402,8 @@ namespace tcp_proxy {
                             boost::bind(&bridge::handle_upstream_write,
                                         shared_from_this(),
                                         boost::asio::placeholders::error));
-            } else {
+            }
+            else {
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_, bytes_transferred),
                             boost::bind(&bridge::handle_upstream_write,

@@ -17,6 +17,7 @@
 #include "server.h++"
 #include <stdlib.h>
 #include <iostream>
+#include <variant>
 #include <libpq-fe.h>
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/transaction_impl.hpp"
@@ -43,7 +44,7 @@ namespace transaction {
         }
 
     private:
-        void appned_backend_result_to_response(PGconn* conn, const Request &req, std::queue<response::Sysbench> &results)
+        void appned_backend_result_to_response(PGconn* conn, const Request &req, std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> &results)
         {
 
             int                     nFields;
@@ -68,6 +69,7 @@ namespace transaction {
              * データベースのシステムカタログpg_databaseから行を取り出す。
              */
             auto get_cursor_query = "DECLARE myportal CURSOR FOR ";
+            std::cout << std::string(req.query().query().data()).c_str() << std::endl;
             res = PQexec(conn, (get_cursor_query + std::string(req.query().query().data())).c_str()); // TODO クエリの反映
             if (PQresultStatus(res) != PGRES_COMMAND_OK)
             {
@@ -93,12 +95,25 @@ namespace transaction {
             /* そして行を表示する。 */
             for (i = 0; i < PQntuples(res); i++)
             {
-                response::Sysbench result_record({"pk", "field1", "field2", "field3"}, nFields); // TODO change table by select query
-                for (j = 0; j < nFields; j++) {
-//                    std::cout << "test1-" << i << "-" << j << std::endl; // ここをコメントアウトするとバグる???
-                    result_record.addColumn(PQgetvalue(res, i, j));
+                if (nFields == 4) { // resultが4つの時
+                    response::Sysbench result_record({"id", "k", "c", "pad"}, nFields); // TODO change table by select query
+                    for (j = 0; j < nFields; j++) {
+                        result_record.addColumn(PQgetvalue(res, i, j));
+                    }
+                    results.emplace(result_record);
+                } else if (req.query().query()[7] == 'c' || req.query().query()[7] == 'D') { // DISTINCT or c
+                    response::Sysbench_one result_record({"c"}, nFields); // TODO change table by select query
+                    for (j = 0; j < nFields; j++) {
+                        result_record.addColumn(PQgetvalue(res, i, j));
+                    }
+                    results.emplace(result_record);
+                } else if (req.query().query()[7] == 's' || req.query().query()[7] == 'S') {
+                    response::Sysbench_one result_record({"sum"}, nFields); // TODO change table by select query
+                    for (j = 0; j < nFields; j++) {
+                        result_record.addColumn(PQgetvalue(res, i, j));
+                    }
+                    results.emplace(result_record);
                 }
-                results.emplace(result_record);
             }
 
             PQclear(res);
@@ -118,29 +133,30 @@ namespace transaction {
                 int ret;
                 char **err;
 
-                sqlite3_stmt *statement = nullptr;
-                int prepare_rc = sqlite3_prepare_v2(in_mem_db, "select * from bench;", -1, &statement, nullptr);
-                if (prepare_rc == SQLITE_OK) {
-                    std::cout << "hogehoge" << std::endl;
-                    if (sqlite3_step(statement) == SQLITE_ROW) {
-                        for (int i = 0; i < sqlite3_column_count(statement); i++) {
-                            std::string column_name = sqlite3_column_name(statement, i);
-                            int columnType = sqlite3_column_type(statement, i);
-                            if (columnType == SQLITE_INTEGER) {
-                                std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
-                                continue;
-                            }
-                        }
-                    }
-                } else {
-                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
-                }
-                sqlite3_reset(statement);
-                sqlite3_finalize(statement);
-                sqlite3_reset(statement);
-                sqlite3_finalize(statement);
+//                sqlite3_stmt *statement = nullptr;
+//                int prepare_rc = sqlite3_prepare_v2(in_mem_db, "select * from bench;", -1, &statement, nullptr);
+//                if (prepare_rc == SQLITE_OK) {
+//                    std::cout << "hogehoge" << std::endl;
+//                    if (sqlite3_step(statement) == SQLITE_ROW) {
+//                        for (int i = 0; i < sqlite3_column_count(statement); i++) {
+//                            std::string column_name = sqlite3_column_name(statement, i);
+//                            int columnType = sqlite3_column_type(statement, i);
+//                            if (columnType == SQLITE_INTEGER) {
+//                                std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
+//                                continue;
+//                            }
+//                        }
+//                    }
+//                } else {
+//                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
+//                }
+//                sqlite3_reset(statement);
+//                sqlite3_finalize(statement);
+//                sqlite3_reset(statement);
+//                sqlite3_finalize(statement);
 
-                std::queue<response::Sysbench> results;
+//                std::queue<response::Sysbench> results;
+                std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> results;
                 appned_backend_result_to_response(_conn, req, results);
                 auto res = Response({CoResponse(Status::Result)});
                 res.begin()->set_results(results);

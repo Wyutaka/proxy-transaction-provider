@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string_view>
+#include <variant>
 
 #include "query.h++"
 #include "src/reqestresponse/RowData.h++"
@@ -36,7 +37,7 @@ namespace transaction {
         std::vector<Row> _data;
 //        std::string raw_response;
 //        unsigned char* raw_response;
-        std::queue<response::Sysbench> _results;
+        std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> _results;
         std::vector<unsigned char> raw_response;
 
     public:
@@ -59,7 +60,7 @@ namespace transaction {
             raw_response = std::move(bytes);
         }
 
-        void set_results(std::queue<response::Sysbench> &results) {
+        void set_results(std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> &results) {
             _results = std::move(results);
         }
 
@@ -67,7 +68,7 @@ namespace transaction {
 
         [[nodiscard]] const std::vector<Row> &data() const { return _data; }
 
-        [[nodiscard]] std::queue<response::Sysbench> get_results() const {return _results;}
+        [[nodiscard]] std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> get_results() const {return _results;}
     };
 
     using Response = std::vector<CoResponse>;

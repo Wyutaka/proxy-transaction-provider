@@ -56,6 +56,7 @@ namespace transaction::lock {
                 if (!_getLock(req.peer())) {
                     return Response({CoResponse(Status::Error)});
                 } else {
+                    std::cout << "Lock succeed" << std::endl;
                     return Response({CoResponse(Status::Ok)});
                 }
             } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
