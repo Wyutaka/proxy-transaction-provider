@@ -133,29 +133,28 @@ namespace transaction {
                 int ret;
                 char **err;
 
-//                sqlite3_stmt *statement = nullptr;
-//                int prepare_rc = sqlite3_prepare_v2(in_mem_db, "select * from bench;", -1, &statement, nullptr);
-//                if (prepare_rc == SQLITE_OK) {
-//                    std::cout << "hogehoge" << std::endl;
-//                    if (sqlite3_step(statement) == SQLITE_ROW) {
-//                        for (int i = 0; i < sqlite3_column_count(statement); i++) {
-//                            std::string column_name = sqlite3_column_name(statement, i);
-//                            int columnType = sqlite3_column_type(statement, i);
-//                            if (columnType == SQLITE_INTEGER) {
-//                                std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
-//                                continue;
-//                            }
-//                        }
-//                    }
-//                } else {
-//                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
-//                }
-//                sqlite3_reset(statement);
-//                sqlite3_finalize(statement);
-//                sqlite3_reset(statement);
-//                sqlite3_finalize(statement);
+                sqlite3_stmt *statement = nullptr;
+                int prepare_rc = sqlite3_prepare_v2(in_mem_db, "select * from bench;", -1, &statement, nullptr);
+                if (prepare_rc == SQLITE_OK) {
+                    std::cout << "hogehoge" << std::endl;
+                    if (sqlite3_step(statement) == SQLITE_ROW) {
+                        for (int i = 0; i < sqlite3_column_count(statement); i++) {
+                            std::string column_name = sqlite3_column_name(statement, i);
+                            int columnType = sqlite3_column_type(statement, i);
+                            if (columnType == SQLITE_INTEGER) {
+                                std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
+                                continue;
+                            }
+                        }
+                    }
+                } else {
+                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
+                }
+                sqlite3_reset(statement);
+                sqlite3_finalize(statement);
+                sqlite3_reset(statement);
+                sqlite3_finalize(statement);
 
-//                std::queue<response::Sysbench> results;
                 std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> results;
                 appned_backend_result_to_response(_conn, req, results);
                 auto res = Response({CoResponse(Status::Result)});
