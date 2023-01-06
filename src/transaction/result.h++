@@ -318,6 +318,8 @@
             using Sysbench_one = BasicResult<std::string>;
             using Sysbench_sum = BasicResult<int>;
 
+            using sysbench_result_type = std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>;
+
 
     /* TODO クエリに対するリクエストを返す
                      クライアントに返す文字列の形式: <C/Z

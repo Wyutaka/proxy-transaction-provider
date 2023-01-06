@@ -65,8 +65,12 @@ namespace tcp_proxy {
         sqlite3 *in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
         static constexpr char* write_ahead_log = "/home/user1/proxy-transaction-provider/build/wal.csv";
+        static constexpr char* text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
+        static constexpr char* text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";
+        static constexpr char* text_download_sbtest1 = "select * from sbtest1";
 
-    // inner class
+
+        // inner class
     public:
         class acceptor final
         {

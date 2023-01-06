@@ -6,6 +6,7 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/format.hpp>
 #include "server.h++"
 #include <stdlib.h>
 #include <iostream>
@@ -69,15 +70,16 @@ namespace tcp_proxy {
         }
 
         // インメモリDB用のsqlite3の初期化
-        int ret = sqlite3_open("memory:", &in_mem_db);
+        int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
             std::cout << "FILE OPEN Error";
             close();
         }
 
         // sqlite3 データテスト挿入
-        ret = sqlite3_exec(in_mem_db,
-                           "create table bench (pk text primary key, field1 integer, field2 integer, field3 integer)",
+        ret = sqlite3_exec(in_mem_db, text_create_tbl_bench,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
                            NULL, NULL, NULL);
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
@@ -85,6 +87,92 @@ namespace tcp_proxy {
         ret = sqlite3_exec(in_mem_db, "insert into bench values ('hoge', 1, 2, 3);", NULL, NULL, NULL);
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
+        }
+
+        // バックエンドからデータを引き継いで返す
+        int nFields;
+        int i, j;
+        PGresult *res;
+        /* トランザクションブロックを開始する。 */
+        res = PQexec(_conn, "BEGIN");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
+            PQclear(res);
+            exit_nicely(_conn);
+        }
+
+        PQclear(res);
+
+        /*
+         * データベースのシステムカタログpg_databaseから行を取り出す。
+         */
+        std::string get_cursor_query = "DECLARE myportal CURSOR FOR ";
+        res = PQexec(_conn, (get_cursor_query + text_download_sbtest1).c_str()); // TODO クエリの反映
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(_conn));
+            PQclear(res);
+            exit_nicely(_conn);
+        }
+        PQclear(res);
+
+        res = PQexec(_conn, "FETCH ALL in myportal");
+        if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+            fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
+            PQclear(res);
+            exit_nicely(_conn);
+        }
+
+        nFields = PQnfields(res);
+
+        std::cout << "nFIelds:" << nFields << std::endl;
+        std::cout << "PQntuples:" << PQntuples(res) << std::endl;
+        /* 行を結果に追加。 */
+        int row_count = PQntuples(res);
+        for (i = 0; i < row_count; i++) {
+            ret = sqlite3_exec(in_mem_db,
+                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
+                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
+                                PQgetvalue(res, i, 3)).str().c_str(),
+                               NULL, NULL, NULL);
+            if (ret != SQLITE_OK) {
+                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
+            }
+        }
+
+        std::cout << "sbtest1 cached" << std::endl;
+        PQclear(res);
+
+        /* ポータルを閉ざす。ここではエラーチェックは省略した… */
+        res = PQexec(_conn, "CLOSE myportal");
+        PQclear(res);
+
+        /* トランザクションを終了する */
+        res = PQexec(_conn, "END");
+        PQclear(res);
+
+        sqlite3_stmt *statement = nullptr;
+        int prepare_rc = sqlite3_prepare_v2(in_mem_db, text_download_sbtest1, -1, &statement, nullptr);
+        if (prepare_rc == SQLITE_OK) {
+            while (sqlite3_step(statement) == SQLITE_ROW) {
+                int columnCount = sqlite3_column_count(statement);
+                for (int i = 0; i < columnCount; i++) {
+                    std::string column_name = sqlite3_column_name(statement, i);
+                    int columnType = sqlite3_column_type(statement, i);
+                    switch (columnType) {
+                        case SQLITE_TEXT:
+                            std::cout << column_name << " = " << sqlite3_column_text(statement, i) << std::endl;
+                            break;
+                        case SQLITE_INTEGER:
+                            std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
+                            break;
+                        case SQLITE_FLOAT:
+                            std::cout << column_name << " = " << sqlite3_column_double(statement, i)
+                                      << std::endl;
+                            break;
+                    }
+                    break;
+                }
+            }
         }
     }
 
@@ -337,7 +425,7 @@ namespace tcp_proxy {
                     for (unsigned char i: response::sysbench_status) {
                         result.push_back(i);
                     }
-                    debug::hexdump(reinterpret_cast<const char *>(result.data()), result.size()); // 下流バッファバッファ16進表示
+//                    debug::hexdump(reinterpret_cast<const char *>(result.data()), result.size()); // 下流バッファバッファ16進表示
 
                 }
 
@@ -383,7 +471,7 @@ namespace tcp_proxy {
                 n += (int) downstream_data_[3] << 8;
                 n += (int) downstream_data_[4];
 
-            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
+//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
                 int prepared_statement_id_length = 0;
                 while(downstream_data_[prepared_statement_id_length + 5] != '\0') { // 5はメッセージ形式とメッセージ帳のバイト長だけ進めることを意味する
                     prepared_statement_id_length++;
