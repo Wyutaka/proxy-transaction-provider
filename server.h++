@@ -45,14 +45,16 @@ namespace tcp_proxy {
     private:
         void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
         void handle_downstream_write(const boost::system::error_code& error);
+        void handle_downstream_write_proxy(const boost::system::error_code& error);
+
         socket_type downstream_socket_;
 
         enum { max_data_length = 8192 * 2 }; //16KB
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_  [max_data_length];
         boost::mutex mutex_;
-        static constexpr char* backend_host = "127.0.0.1";
-        static constexpr char*  backend_postgres_conninfo = "host=127.0.0.1 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        static constexpr char* backend_host = "192.168.12.23";
+        static constexpr char*  backend_postgres_conninfo = "host=192.168.12.23 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
@@ -64,7 +66,7 @@ namespace tcp_proxy {
         pool::ThreadPoolExecutor queue_sender;
         sqlite3 *in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
-        static constexpr char* write_ahead_log = "/home/user1/proxy-transaction-provider/build/wal.csv";
+        static constexpr char* write_ahead_log = "/home/y-watanabe/wal.csv";
         static constexpr char* text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
         static constexpr char* text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";
         static constexpr char* text_download_sbtest1 = "select * from sbtest1";

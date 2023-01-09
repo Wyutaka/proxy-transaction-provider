@@ -58,7 +58,7 @@ namespace transaction {
             {
                 fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(conn));
                 PQclear(res);
-                exit_nicely(conn);
+//                exit_nicely(conn);
             }
 
             PQclear(res);
@@ -73,7 +73,7 @@ namespace transaction {
             {
                 fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(conn));
                 PQclear(res);
-                exit_nicely(conn);
+//                exit_nicely(conn);
             }
             PQclear(res);
 
@@ -82,7 +82,7 @@ namespace transaction {
             {
                 fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(conn));
                 PQclear(res);
-                exit_nicely(conn);
+//                exit_nicely(conn);
             }
 
             nFields = PQnfields(res);
@@ -194,15 +194,14 @@ namespace transaction {
 
     public:
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
-//            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
-            std::queue<response::sysbench_result_type> results;
+            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
             if (req.query().isSelect()) {
+                std::queue<response::sysbench_result_type> results;
                 bool isCached = get_from_local(in_mem_db, req, results);
                 if (!isCached) {
                     std::cout << "not cached" << std::endl;
                     download_result(_conn, req, results);
                 }
-//                download_result(_conn, req, results);
 
                 auto res = Response({CoResponse(Status::Result)});
                 res.begin()->set_results(results);

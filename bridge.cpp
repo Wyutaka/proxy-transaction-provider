@@ -58,7 +58,7 @@ namespace tcp_proxy {
         if (PQstatus(_conn) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
                     PQerrorMessage(_conn));
-            exit_nicely(_conn);
+//            exit_nicely(_conn);
         }
 
         _conn_for_send_query_backend = PQconnectdb(backend_postgres_conninfo);
@@ -66,14 +66,14 @@ namespace tcp_proxy {
         if (PQstatus(_conn_for_send_query_backend) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
                     PQerrorMessage(_conn_for_send_query_backend));
-            exit_nicely(_conn_for_send_query_backend);
+//            exit_nicely(_conn_for_send_query_backend);
         }
 
         // インメモリDB用のsqlite3の初期化
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
             std::cout << "FILE OPEN Error";
-            close();
+//            close();
         }
 
         // sqlite3 データテスト挿入
@@ -84,6 +84,7 @@ namespace tcp_proxy {
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
         }
+
         ret = sqlite3_exec(in_mem_db, "insert into bench values ('hoge', 1, 2, 3);", NULL, NULL, NULL);
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
@@ -98,7 +99,7 @@ namespace tcp_proxy {
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
             PQclear(res);
-            exit_nicely(_conn);
+//            exit_nicely(_conn);
         }
 
         PQclear(res);
@@ -111,7 +112,7 @@ namespace tcp_proxy {
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(_conn));
             PQclear(res);
-            exit_nicely(_conn);
+//            exit_nicely(_conn);
         }
         PQclear(res);
 
@@ -119,7 +120,7 @@ namespace tcp_proxy {
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
             fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
             PQclear(res);
-            exit_nicely(_conn);
+//            exit_nicely(_conn);
         }
 
         nFields = PQnfields(res);
@@ -128,18 +129,19 @@ namespace tcp_proxy {
         std::cout << "PQntuples:" << PQntuples(res) << std::endl;
         /* 行を結果に追加。 */
         int row_count = PQntuples(res);
-//        for (i = 0; i < row_count; i++) {
-//            ret = sqlite3_exec(in_mem_db,
-//                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
-//                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
-//                                PQgetvalue(res, i, 3)).str().c_str(),
-//                               NULL, NULL, NULL);
-//            if (ret != SQLITE_OK) {
-//                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-//            }
-//        }
+        for (i = 0; i < 3 * row_count / 4 ; i++) { // 50%
+            ret = sqlite3_exec(in_mem_db,
+                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
+                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
+                                PQgetvalue(res, i, 3)).str().c_str(),
+                               NULL, NULL, NULL);
+            if (ret != SQLITE_OK) {
+                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
+                break;
+            }
+        }
 
-        std::cout << "sbtest1 cached(fake)" << std::endl;
+        std::cout << "sbtest1 cached" << std::endl;
         PQclear(res);
 
         /* ポータルを閉ざす。ここではエラーチェックは省略した… */
@@ -149,31 +151,6 @@ namespace tcp_proxy {
         /* トランザクションを終了する */
         res = PQexec(_conn, "END");
         PQclear(res);
-
-        sqlite3_stmt *statement = nullptr;
-        int prepare_rc = sqlite3_prepare_v2(in_mem_db, text_download_sbtest1, -1, &statement, nullptr);
-        if (prepare_rc == SQLITE_OK) {
-            while (sqlite3_step(statement) == SQLITE_ROW) {
-                int columnCount = sqlite3_column_count(statement);
-                for (int i = 0; i < columnCount; i++) {
-                    std::string column_name = sqlite3_column_name(statement, i);
-                    int columnType = sqlite3_column_type(statement, i);
-                    switch (columnType) {
-                        case SQLITE_TEXT:
-                            std::cout << column_name << " = " << sqlite3_column_text(statement, i) << std::endl;
-                            break;
-                        case SQLITE_INTEGER:
-                            std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
-                            break;
-                        case SQLITE_FLOAT:
-                            std::cout << column_name << " = " << sqlite3_column_double(statement, i)
-                                      << std::endl;
-                            break;
-                    }
-                    break;
-                }
-            }
-        }
     }
 
     bridge::~bridge() {
@@ -222,8 +199,10 @@ namespace tcp_proxy {
                                 shared_from_this(),
                                 boost::asio::placeholders::error,
                                 boost::asio::placeholders::bytes_transferred));
-        } else
+        } else {
+            std::cout << "handle_upstream_connect_err" << std::endl;
             close();
+        }
     }
 
     void bridge::handle_upstream_read(const boost::system::error_code &error,
@@ -238,8 +217,11 @@ namespace tcp_proxy {
                         boost::bind(&bridge::handle_downstream_write,
                                     shared_from_this(),
                                     boost::asio::placeholders::error));
-        } else
-            close();
+        } else {
+//            std::cout << "handle_upstream_read_err" << std::endl;
+//            std::cout << error.message() << std::endl;
+//            close();
+        }
     }
 
     void bridge::handle_downstream_write(const boost::system::error_code &error) {
@@ -250,8 +232,26 @@ namespace tcp_proxy {
                                 shared_from_this(),
                                 boost::asio::placeholders::error,
                                 boost::asio::placeholders::bytes_transferred));
-        } else
+        } else {
+            std::cout << "handle_downstream_write_err" << std::endl;
+            std::cout << error.message() << std::endl;
             close();
+        }
+    }
+
+    void bridge::handle_downstream_write_proxy(const boost::system::error_code &error) {
+        if (!error) {
+            downstream_socket_.async_read_some(
+                    boost::asio::buffer(upstream_data_, max_data_length),
+                    boost::bind(&bridge::handle_downstream_read,
+                                shared_from_this(),
+                                boost::asio::placeholders::error,
+                                boost::asio::placeholders::bytes_transferred));
+        } else {
+            std::cout << "handle_downstream_write_err" << std::endl;
+            std::cout << error.message() << std::endl;
+            close();
+        }
     }
 
     template<class C>
@@ -267,16 +267,17 @@ namespace tcp_proxy {
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(conn));
             PQclear(res);
-            exit_nicely(conn);
+//            exit_nicely(conn);
         }
         PQclear(res);
         while (!queue.empty()) {
             std::string_view query = queue.front();
             res = PQexec(conn, query.data());
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                std::cout << "send query backend failed" << std::endl;
                 fprintf(stderr, query.data(), PQerrorMessage(conn));
                 PQclear(res);
-                exit_nicely(conn);
+//                exit_nicely(conn);
             }
             queue.pop();
             PQclear(res);
@@ -291,7 +292,7 @@ namespace tcp_proxy {
                                         const size_t &bytes_transferred) {
         if (!error) {
 //            std::cout << "handle downstream_read" << std::endl;
-//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示
+            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示 test
 
             // ヘッダ情報の読み込み
             int n = 0;
@@ -328,8 +329,6 @@ namespace tcp_proxy {
 //                        memcpy(&result_ok[2], &downstream_data_[2], 2);
                         result_ok[2] = downstream_data_[2];         // streamIDの置換
                         result_ok[3] = downstream_data_[3];         // streamIDの置換
-//                        debug::hexdump(result_ok, 4);
-//                        std::cout << result_ok[0] << std::endl;
                         // streamIdコピー
                         async_write(downstream_socket_,
                                     boost::asio::buffer(result_ok, 13), // result_okの文字列長
@@ -448,19 +447,11 @@ namespace tcp_proxy {
 
                 // クライアントからの読み込みを開始 (downstream)
                 downstream_socket_.async_read_some(
-                        boost::asio::buffer(downstream_data_, max_data_length),
+                        boost::asio::buffer(downstream_data_,max_data_length),
                         boost::bind(&bridge::handle_downstream_read,
                                     shared_from_this(),
                                     boost::asio::placeholders::error,
                                     boost::asio::placeholders::bytes_transferred));
-
-
-
-//                async_write(upstream_socket_,
-//                            boost::asio::buffer(downstream_data_,bytes_transferred),
-//                            boost::bind(&bridge::handle_upstream_write,
-//                                        shared_from_this(),
-//                                        boost::asio::placeholders::error));
 
             // postgresのParseメッセージ(PSの宣言)
             }
@@ -476,7 +467,6 @@ namespace tcp_proxy {
                 while(downstream_data_[prepared_statement_id_length + 5] != '\0') { // 5はメッセージ形式とメッセージ帳のバイト長だけ進めることを意味する
                     prepared_statement_id_length++;
                 }
-                std::cout << "hoge : " << prepared_statement_id_length << std::endl;
                 auto prepared_statement_id = std::string(reinterpret_cast<const char *>(&downstream_data_[5]), prepared_statement_id_length);
                 auto prepared_statement_query = std::string(reinterpret_cast<const char *>(&downstream_data_[5 + prepared_statement_id_length]), n - 4 - prepared_statement_id_length);
 
@@ -499,7 +489,9 @@ namespace tcp_proxy {
                                         boost::asio::placeholders::error));
             }
 
-        } else {
+        } else { // if (!error)
+            std::cout << "handle_downstream_read_err" << std::endl;
+            std::cout << error.message() << std::endl;
             close();
         }
     }
@@ -513,8 +505,10 @@ namespace tcp_proxy {
                                 shared_from_this(),
                                 boost::asio::placeholders::error,
                                 boost::asio::placeholders::bytes_transferred));
-        } else
+        } else {
+            std::cout << "handle_upstream_write_err" << std::endl;
             close();
+        }
     }
 
     void bridge::close() {
