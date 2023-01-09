@@ -128,18 +128,18 @@ namespace tcp_proxy {
         std::cout << "PQntuples:" << PQntuples(res) << std::endl;
         /* 行を結果に追加。 */
         int row_count = PQntuples(res);
-        for (i = 0; i < row_count; i++) {
-            ret = sqlite3_exec(in_mem_db,
-                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
-                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
-                                PQgetvalue(res, i, 3)).str().c_str(),
-                               NULL, NULL, NULL);
-            if (ret != SQLITE_OK) {
-                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-            }
-        }
+//        for (i = 0; i < row_count; i++) {
+//            ret = sqlite3_exec(in_mem_db,
+//                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
+//                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
+//                                PQgetvalue(res, i, 3)).str().c_str(),
+//                               NULL, NULL, NULL);
+//            if (ret != SQLITE_OK) {
+//                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
+//            }
+//        }
 
-        std::cout << "sbtest1 cached" << std::endl;
+        std::cout << "sbtest1 cached(fake)" << std::endl;
         PQclear(res);
 
         /* ポータルを閉ざす。ここではエラーチェックは省略した… */

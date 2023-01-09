@@ -181,24 +181,6 @@ namespace transaction {
                             }
                             results.emplace(result_record);
                         }
-
-                        for (int i = 0; i < columnCount; i++) {
-                            std::string column_name = sqlite3_column_name(statement, i);
-                            int columnType = sqlite3_column_type(statement, i);
-                            switch (columnType) {
-                                case SQLITE_TEXT:
-                                    std::cout << column_name << " = " << sqlite3_column_text(statement, i) << std::endl;
-                                    break;
-                                case SQLITE_INTEGER:
-                                    std::cout << column_name << " = " << sqlite3_column_int(statement, i) << std::endl;
-                                    break;
-                                case SQLITE_FLOAT:
-                                    std::cout << column_name << " = " << sqlite3_column_double(statement, i)
-                                              << std::endl;
-                                    break;
-                            }
-                            break;
-                        }
                     }
                 } else {
                     printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
@@ -216,8 +198,12 @@ namespace transaction {
             std::queue<response::sysbench_result_type> results;
             if (req.query().isSelect()) {
                 bool isCached = get_from_local(in_mem_db, req, results);
-                if (!isCached) download_result(_conn, req, results);
-                download_result(_conn, req, results);
+                if (!isCached) {
+                    std::cout << "not cached" << std::endl;
+                    download_result(_conn, req, results);
+                }
+//                download_result(_conn, req, results);
+
                 auto res = Response({CoResponse(Status::Result)});
                 res.begin()->set_results(results);
                 return res;
