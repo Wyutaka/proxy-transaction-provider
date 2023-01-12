@@ -11,7 +11,9 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/stacktrace.hpp>
 #include "server.h++"
+#include "trace.h++"
 
 namespace tcp_proxy {
     bridge::acceptor::acceptor(boost::asio::io_service& io_service,
@@ -31,16 +33,14 @@ namespace tcp_proxy {
     bool bridge::acceptor::accept_connections()
     {
 
-        try
-        {
-            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_));
-
-            acceptor_.async_accept(session_->downstream_socket(),
+        try {
+            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_)); // bad_alloc?
+            acceptor_.async_accept(session_->downstream_socket_,
                                    boost::bind(&acceptor::handle_accept,
                                                this,
                                                boost::asio::placeholders::error));
-        }
-        catch(std::exception& e)
+
+        } catch(std::exception& e)
         {
             std::cerr << "acceptor exception: " << e.what() << std::endl;
             return false;

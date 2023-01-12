@@ -194,12 +194,12 @@ namespace transaction {
 
     public:
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
-            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
+//            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
             if (req.query().isSelect()) {
                 std::queue<response::sysbench_result_type> results;
                 bool isCached = get_from_local(in_mem_db, req, results);
                 if (!isCached) {
-                    std::cout << "not cached" << std::endl;
+//                    std::cout << "not cached" << std::endl;
                     download_result(_conn, req, results);
                 }
 

@@ -39,7 +39,7 @@ namespace tcp_proxy {
                                     const size_t& bytes_transferred);
         // Write to remote server complete, Async read from client
         void handle_upstream_write(const boost::system::error_code& error);
-        static void send_queue_backend(std::queue<std::string>& queue, PGconn* conn);
+        static void send_queue_backend(std::queue<std::string>& queue);
         socket_type upstream_socket_;
 
     private:
@@ -61,8 +61,8 @@ namespace tcp_proxy {
         std::shared_ptr<CassCluster> _cluster;
         std::shared_ptr<CassSession> _session;
         PGconn *_conn;
-        PGconn *_conn_for_send_query_backend;
         std::queue<std::string> query_queue;
+        std::mutex queue_mtx;
         pool::ThreadPoolExecutor queue_sender;
         sqlite3 *in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;

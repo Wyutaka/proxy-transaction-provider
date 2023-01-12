@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/format.hpp>
+#include <boost/stacktrace.hpp>
 #include "server.h++"
 #include <stdlib.h>
 #include <iostream>
@@ -33,8 +34,8 @@ namespace tcp_proxy {
     bridge::bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host)
             : downstream_socket_(ios),
               upstream_socket_(ios),
-              upstream_host_(upstream_host_),
-              upstream_port_(upstream_port_),
+              upstream_host_(upstream_host),
+              upstream_port_(upstream_port),
               _connectFuture(NULL),
               _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
               _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
@@ -61,14 +62,6 @@ namespace tcp_proxy {
 //            exit_nicely(_conn);
         }
 
-        _conn_for_send_query_backend = PQconnectdb(backend_postgres_conninfo);
-        /* バックエンドとの接続確立に成功したかを確認する */
-        if (PQstatus(_conn_for_send_query_backend) != CONNECTION_OK) {
-            fprintf(stderr, "Connection to database failed: %s",
-                    PQerrorMessage(_conn_for_send_query_backend));
-//            exit_nicely(_conn_for_send_query_backend);
-        }
-
         // インメモリDB用のsqlite3の初期化
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
@@ -76,16 +69,9 @@ namespace tcp_proxy {
 //            close();
         }
 
-        // sqlite3 データテスト挿入
-        ret = sqlite3_exec(in_mem_db, text_create_tbl_bench,
-                           NULL, NULL, NULL);
+        // sqlite3 sbtest1挿入
         ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
                            NULL, NULL, NULL);
-        if (ret != SQLITE_OK) {
-            printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-        }
-
-        ret = sqlite3_exec(in_mem_db, "insert into bench values ('hoge', 1, 2, 3);", NULL, NULL, NULL);
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
         }
@@ -129,7 +115,7 @@ namespace tcp_proxy {
         std::cout << "PQntuples:" << PQntuples(res) << std::endl;
         /* 行を結果に追加。 */
         int row_count = PQntuples(res);
-        for (i = 0; i < 3 * row_count / 4 ; i++) { // 50%
+        for (i = 0; i < row_count ; i++) { // 50%
             ret = sqlite3_exec(in_mem_db,
                                (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
                                 PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
@@ -261,22 +247,28 @@ namespace tcp_proxy {
         os << std::endl;
     }
 
-    void bridge::send_queue_backend(std::queue<std::string> &queue, PGconn *conn) {
+    void bridge::send_queue_backend(std::queue<std::string> &queue) {
+        thread_local PGconn *_conn_for_send_query_backend = PQconnectdb(backend_postgres_conninfo);
+        /* バックエンドとの接続確立に成功したかを確認する */
+        if (PQstatus(_conn_for_send_query_backend) != CONNECTION_OK) {
+            fprintf(stderr, "Connection to database failed: %s",
+                    PQerrorMessage(_conn_for_send_query_backend));
+//            exit_nicely(_conn_for_send_query_backend);
+        }
+
         PGresult *res;
-        res = PQexec(conn, "BEGIN");
+        res = PQexec(_conn_for_send_query_backend, "BEGIN");
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(conn));
-            PQclear(res);
-//            exit_nicely(conn);
+            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn_for_send_query_backend));
+            exit_nicely(_conn_for_send_query_backend);
         }
         PQclear(res);
         while (!queue.empty()) {
             std::string_view query = queue.front();
-            res = PQexec(conn, query.data());
+            res = PQexec(_conn_for_send_query_backend, query.data());
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                std::cout << "send query backend failed" << std::endl;
-                fprintf(stderr, query.data(), PQerrorMessage(conn));
-                PQclear(res);
+//                std::cout << "send query backend failed" << std::endl;
+//                fprintf(stderr, query.data(), PQerrorMessage(_conn_for_send_query_backend));
 //                exit_nicely(conn);
             }
             queue.pop();
@@ -284,7 +276,7 @@ namespace tcp_proxy {
         }
 
         /* トランザクションを終了する */
-        res = PQexec(conn, "END");
+        res = PQexec(_conn_for_send_query_backend, "END");
         PQclear(res);
     }
 
@@ -292,7 +284,7 @@ namespace tcp_proxy {
                                         const size_t &bytes_transferred) {
         if (!error) {
 //            std::cout << "handle downstream_read" << std::endl;
-            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示 test
+//            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), bytes_transferred); // 下流バッファバッファ16進表示 test
 
             // ヘッダ情報の読み込み
             int n = 0;
@@ -375,7 +367,8 @@ namespace tcp_proxy {
                         };
 
                 if (res.front().status() == transaction::Status::Commit) {
-                    queue_sender.submit([&]() { send_queue_backend(query_queue, _conn_for_send_query_backend); });
+                    queue_sender.submit([&]() { send_queue_backend(query_queue); });
+
                 }
                 std::vector<unsigned char> result;
                 // for sysbench
@@ -489,13 +482,13 @@ namespace tcp_proxy {
                                         boost::asio::placeholders::error));
             }
 
-        } else { // if (!error)
+        }
+        else { // if (!error)
             std::cout << "handle_downstream_read_err" << std::endl;
             std::cout << error.message() << std::endl;
-            close();
+//            close();
         }
     }
-
 
     void bridge::handle_upstream_write(const boost::system::error_code &error) {
         if (!error) {
