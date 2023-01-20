@@ -26,9 +26,10 @@ namespace transaction {
     enum class Status {
         Error = 0,
         Ok,
-        Result,
+        Result, // 内部DBから結果を取得済み
         Pending, // 非同期にバックエンドに送信中
-        Commit
+        Select_Pending, // 内部DBに結果がない
+        Commit,
     };
 
     class CoResponse {

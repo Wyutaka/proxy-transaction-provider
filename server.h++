@@ -12,6 +12,7 @@
 #include <libpq-fe.h>
 #include <queue>
 #include "src/ThreadPool/ThreadPool.h++"
+//#include "src/reqestresponse/Request.h++"
 #include <sqlite3.h>
 
 
@@ -46,6 +47,7 @@ namespace tcp_proxy {
         void handle_upstream_read(const boost::system::error_code& error, const size_t& bytes_transferred);
         void handle_downstream_write(const boost::system::error_code& error);
         void handle_downstream_write_proxy(const boost::system::error_code& error);
+//        void download_result(PGconn &conn, const transaction::Request &req, sqlite3 *in_mem_db);
 
         socket_type downstream_socket_;
 

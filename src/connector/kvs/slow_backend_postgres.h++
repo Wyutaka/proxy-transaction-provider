@@ -22,6 +22,7 @@
 #include "./src/lock/Lock.h++"
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
+#include <boost/thread.hpp>
 
 static void
 exit_nicely(PGconn *conn)
@@ -46,49 +47,49 @@ namespace transaction {
         }
 
     private:
-        static void download_result(PGconn* conn, const Request &req, std::queue<response::sysbench_result_type> &results)
-        {
-
+        void download_result(PGconn &conn, const Request &req,
+                                                std::queue<response::sysbench_result_type> results) {
             int                     nFields;
             int                     i,j;
             PGresult *res;
             /* トランザクションブロックを開始する。 */
-            res = PQexec(conn, "BEGIN");
+            res = PQexec(&conn, "BEGIN");
             if (PQresultStatus(res) != PGRES_COMMAND_OK)
             {
-                fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(conn));
+                fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
+                std::cout << "test" << std::endl;
 //                exit_nicely(conn);
             }
 
-            PQclear(res);
+//            PQclear(res);
 
             /*
              * データベースのシステムカタログpg_databaseから行を取り出す。
              */
             auto get_cursor_query = "DECLARE myportal CURSOR FOR ";
-            std::cout << std::string(req.query().query().data()).c_str() << std::endl;
-            res = PQexec(conn, (get_cursor_query + std::string(req.query().query().data())).c_str()); // TODO クエリの反映
+//            std::cout << std::string(req.query().query().data()).c_str() << std::endl;
+            res = PQexec(&conn, (get_cursor_query + std::string(req.query().query().data())).c_str());
             if (PQresultStatus(res) != PGRES_COMMAND_OK)
             {
-                fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(conn));
+                fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
 //                exit_nicely(conn);
             }
-            PQclear(res);
+//            PQclear(res);
 
-            res = PQexec(conn, "FETCH ALL in myportal");
+            res = PQexec(&conn, "FETCH ALL in myportal");
             if (PQresultStatus(res) != PGRES_TUPLES_OK)
             {
-                fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(conn));
+                fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
 //                exit_nicely(conn);
             }
 
             nFields = PQnfields(res);
 
-            std::cout << "nFIelds:" << nFields << std::endl;
-            std::cout << "PQntuples:" << PQntuples(res) << std::endl;
+//            std::cout << "nFIelds:" << nFields << std::endl;
+//            std::cout << "PQntuples:" << PQntuples(res) << std::endl;
 //            std::cout << "test1-1" << std::endl;
             /* 行を結果に追加。 */
             for (i = 0; i < PQntuples(res); i++)
@@ -117,17 +118,17 @@ namespace transaction {
             PQclear(res);
 
             /* ポータルを閉ざす。ここではエラーチェックは省略した… */
-            res = PQexec(conn, "CLOSE myportal");
+            res = PQexec(&conn, "CLOSE myportal");
             PQclear(res);
 
             /* トランザクションを終了する */
-            res = PQexec(conn, "END");
+            res = PQexec(&conn, "END");
             PQclear(res);
         }
 
         /*
          * インメモリdbから値を取得する.インメモリデータがある場合はtrueを返す.
-         * sysbenchを回すためにハードコードしてるぶぶんがあるので、直す
+         * sysbenchを回すためにハードコードしてる部分がある
          */
         bool get_from_local(sqlite3 *in_mem_db, const Request &req, std::queue<response::sysbench_result_type> &results) {
             if (req.query().isSelect()) {
@@ -137,6 +138,7 @@ namespace transaction {
                 if (prepare_rc == SQLITE_OK) {
                     while (sqlite3_step(statement) == SQLITE_ROW) {
                         row_count++;
+                        auto res_type_char = req.query().query()[7];
                         int columnCount = sqlite3_column_count(statement);
                         if (columnCount == 4) { // resultが4つの時(select * の時)
                             response::Sysbench result_record({"id", "k", "c", "pad"}, columnCount); // TODO change table by select query
@@ -152,7 +154,7 @@ namespace transaction {
                                 }
                             }
                             results.emplace(result_record);
-                        } else if (req.query().query()[7] == 'c' || req.query().query()[7] == 'D') { // DISTINCT or c
+                        } else if (res_type_char == 'c' || res_type_char == 'D') { // DISTINCT or c
                             response::Sysbench_one result_record({"c"}, columnCount); // TODO change table by select query
                             for (int j = 0; j < columnCount; j++) {
                                 int columnType = sqlite3_column_type(statement, j);
@@ -166,7 +168,7 @@ namespace transaction {
                                 }
                             }
                             results.emplace(result_record);
-                        } else if (req.query().query()[7] == 's' || req.query().query()[7] == 'S') { // select sum
+                        } else if (res_type_char == 's' || res_type_char == 'S') { // select sum
                             response::Sysbench_one result_record({"sum"}, columnCount); // TODO change table by select query
                             for (int j = 0; j < columnCount; j++) {
                                 int columnType = sqlite3_column_type(statement, j);
@@ -197,17 +199,16 @@ namespace transaction {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
             if (req.query().isSelect()) {
                 std::queue<response::sysbench_result_type> results;
+
                 bool isCached = get_from_local(in_mem_db, req, results);
                 if (!isCached) {
-//                    std::cout << "not cached" << std::endl;
-                    download_result(_conn, req, results);
+                    return Response({CoResponse(Status::Select_Pending)});
                 }
 
                 auto res = Response({CoResponse(Status::Result)});
                 res.begin()->set_results(results);
                 return res;
             }
-
 
             return Response({CoResponse(Status::Ok)});;
         }
