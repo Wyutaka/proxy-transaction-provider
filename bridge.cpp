@@ -105,7 +105,7 @@ namespace tcp_proxy {
         res = PQexec(_conn, "FETCH ALL in myportal");
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
             fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
-            PQclear(res);
+//            PQclear(res);
 //            exit_nicely(_conn);
         }
 
@@ -115,17 +115,17 @@ namespace tcp_proxy {
         std::cout << "PQntuples:" << PQntuples(res) << std::endl;
         /* 行を結果に追加。 */
         int row_count = PQntuples(res);
-        for (i = 0; i < row_count; i++) { // 50%
-            ret = sqlite3_exec(in_mem_db,
-                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
-                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
-                                PQgetvalue(res, i, 3)).str().c_str(),
-                               NULL, NULL, NULL);
-            if (ret != SQLITE_OK) {
-                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-                break;
-            }
-        }
+//        for (i = 0; i < row_count; i++) { // 50%
+//            ret = sqlite3_exec(in_mem_db,
+//                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
+//                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
+//                                PQgetvalue(res, i, 3)).str().c_str(),
+//                               NULL, NULL, NULL);
+//            if (ret != SQLITE_OK) {
+//                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
+//                break;
+//            }
+//        }
 
         std::cout << "sbtest1 cached" << std::endl;
         PQclear(res);
@@ -262,7 +262,7 @@ namespace tcp_proxy {
         if (!error) {
 
 //            std::cout << "handle upstream_read" << std::endl;
-            debug::hexdump(reinterpret_cast<const char *>(upstream_data_), bytes_transferred);
+//            debug::hexdump(reinterpret_cast<const char *>(upstream_data_), bytes_transferred);
 
             async_write(downstream_socket_,
                         boost::asio::buffer(upstream_data_, bytes_transferred),
@@ -398,54 +398,37 @@ namespace tcp_proxy {
                                             boost::asio::placeholders::error));
 //                    in_mem_updater.join();
                 } else if (transaction_status == transaction::Status::Result) {
-                    std::vector<unsigned char> result;
-                    // TODO ない場合は後ろにレスポンスを任せたい(パースとかバイトパックに時間がかかるから)
-                    // 内部DBから検索してデータがなかったらバックエンドに流しつつ、並列で内部DBにキャッシュ
+                    std::basic_string<unsigned char> result;
+
                     auto Ds = res.front().get_results();
                     auto res_type_char = req.query().query()[7];
                     // ヘッダ情報のバイトパック
                     if (res_type_char == 'c' || res_type_char == 'D') {
-                        for (unsigned char i: response::sysbench_tbl_c_header) {
-                            result.push_back(i);
-                        }
+                        result.append(response::sysbench_tbl_c_header);
                     } else if (res_type_char == 's' || res_type_char == 'S') {
-                        for (unsigned char i: response::sysbench_tbl_sum_header) {
-                            result.push_back(i);
-                        }
+                        result.append(response::sysbench_tbl_sum_header);
                     } else {
-                        for (unsigned char i: response::sysbench_tbl_header) {
-                            result.push_back(i);
-                        }
+                        result.append(response::sysbench_tbl_header);
                     }
                     while (!Ds.empty()) {
                         auto res_type = Ds.front().index(); // 0 -> sysbench, 1 -> sysbench_one, 2 -> sysbench_sum
+                        std::vector<unsigned char> D;
                         if (res_type == 0) { // sysbench
-                            std::vector<unsigned char> D = std::get<0>(Ds.front()).bytes();
-                            for (unsigned char &i: D) {
-                                result.push_back(i);
-                            }
+                            D = std::get<0>(Ds.front()).bytes();
                         } else if (res_type == 1) { // sysbench_one
-                            std::vector<unsigned char> D = std::get<1>(Ds.front()).bytes();
-                            for (unsigned char &i: D) {
-                                result.push_back(i);
-                            }
+                            D = std::get<1>(Ds.front()).bytes();
                         } else if (res_type == 2) { // sysbench_sum
-                            std::vector<unsigned char> D = std::get<2>(Ds.front()).bytes();
-                            for (unsigned char &i: D) {
-                                result.push_back(i);
-                            }
+                            D = std::get<2>(Ds.front()).bytes();
                         }
+                        result.append(std::basic_string(D.begin(), D.end()));
                         Ds.pop();
                         if (result.size() > 60000) // バッファあふれの回避
                             break;
                     }
                     // フッタ情報の追加
-                    for (unsigned char i: response::sysbench_slct_cmd) {
-                        result.push_back(i);
-                    }
-                    for (unsigned char i: response::sysbench_status) {
-                        result.push_back(i);
-                    }
+
+                    result.append(response::sysbench_slct_cmd);
+                    result.append(response::sysbench_status);
 //                    debug::hexdump(reinterpret_cast<const char *>(result.data()), result.size()); // 下流バッファバッファ16進表示
 
                     async_write(downstream_socket_,

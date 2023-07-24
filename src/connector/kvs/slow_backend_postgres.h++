@@ -197,6 +197,7 @@ namespace transaction {
     public:
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
+//                std::cout << req.query().query() << std::endl;
             if (req.query().isSelect()) {
                 std::queue<response::sysbench_result_type> results;
 
