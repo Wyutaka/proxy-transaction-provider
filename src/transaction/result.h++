@@ -258,7 +258,8 @@
         public:
 //            BasicResult(std::string_view ks, std::string_view tbl, const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
                 BasicResult(const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
-/*0x00,0x00,0x00,0x02 // Rows
+
+    /*0x00,0x00,0x00,0x02 // Rows
 0x00,0x00,0x00,0x01  // flags 1
 0x00,0x00,0x00,0x12  // column count
 0x00,0x06 // len(ksname)

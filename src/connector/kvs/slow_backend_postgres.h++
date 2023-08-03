@@ -25,8 +25,7 @@
 #include <boost/thread.hpp>
 
 static void
-exit_nicely(PGconn *conn)
-{
+exit_nicely(PGconn *conn) {
     PQfinish(conn);
     exit(1);
 }
@@ -39,23 +38,22 @@ namespace transaction {
     private:
         boost::shared_ptr<tcp_proxy::bridge> _bridge;
         std::shared_ptr<CassFuture> _connectFuture;
-        PGconn* _conn;
+        PGconn *_conn;
 
     public:
-        explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn* conn)
+        explicit PostgresConnector(boost::shared_ptr<tcp_proxy::bridge> bridge, PGconn *conn)
                 : _connectFuture(), _conn(conn), _bridge(bridge) {
         }
 
     private:
         void download_result(PGconn &conn, const Request &req,
-                                                std::queue<response::sysbench_result_type> results) {
-            int                     nFields;
-            int                     i,j;
+                             std::queue<response::sysbench_result_type> results) {
+            int nFields;
+            int i, j;
             PGresult *res;
             /* トランザクションブロックを開始する。 */
             res = PQexec(&conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
                 std::cout << "test" << std::endl;
@@ -70,8 +68,7 @@ namespace transaction {
             auto get_cursor_query = "DECLARE myportal CURSOR FOR ";
 //            std::cout << std::string(req.query().query().data()).c_str() << std::endl;
             res = PQexec(&conn, (get_cursor_query + std::string(req.query().query().data())).c_str());
-            if (PQresultStatus(res) != PGRES_COMMAND_OK)
-            {
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
 //                exit_nicely(conn);
@@ -79,8 +76,7 @@ namespace transaction {
 //            PQclear(res);
 
             res = PQexec(&conn, "FETCH ALL in myportal");
-            if (PQresultStatus(res) != PGRES_TUPLES_OK)
-            {
+            if (PQresultStatus(res) != PGRES_TUPLES_OK) {
                 fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
 //                exit_nicely(conn);
@@ -92,10 +88,10 @@ namespace transaction {
 //            std::cout << "PQntuples:" << PQntuples(res) << std::endl;
 //            std::cout << "test1-1" << std::endl;
             /* 行を結果に追加。 */
-            for (i = 0; i < PQntuples(res); i++)
-            {
+            for (i = 0; i < PQntuples(res); i++) {
                 if (nFields == 4) { // resultが4つの時
-                    response::Sysbench result_record({"id", "k", "c", "pad"}, nFields); // TODO change table by select query
+                    response::Sysbench result_record({"id", "k", "c", "pad"},
+                                                     nFields); // TODO change table by select query
                     for (j = 0; j < nFields; j++) {
                         result_record.addColumn(PQgetvalue(res, i, j));
                     }
@@ -126,72 +122,90 @@ namespace transaction {
             PQclear(res);
         }
 
+        const int COLUMN_COUNT_ALL = 4;
+        const char SELECT_ALL_CHAR = '*';
+        const char DISTINCT_CHAR = 'D';
+        const char SUM_CHAR = 's';
+        const char COLUMN_CHAR = 'c';
+
+        using RecordConstructor = std::function<std::variant<response::Sysbench, response::Sysbench_one>(const std::vector<std::string>&, int)>;
+
+        template<std::size_t N>
+        auto createSysbenchLambda() {
+            return [](std::array<std::string_view, N> columns, int count) {
+                return response::Sysbench(columns, count);
+            };
+        }
         /*
          * インメモリdbから値を取得する.インメモリデータがある場合はtrueを返す.
          * sysbenchを回すためにハードコードしてる部分がある
          */
-        bool get_from_local(sqlite3 *in_mem_db, const Request &req, std::queue<response::sysbench_result_type> &results) {
-            if (req.query().isSelect()) {
-                int row_count;
-                sqlite3_stmt *statement = nullptr;
-                int prepare_rc = sqlite3_prepare_v2(in_mem_db, req.query().query().data(), -1, &statement, nullptr);
-                if (prepare_rc == SQLITE_OK) {
-                    while (sqlite3_step(statement) == SQLITE_ROW) {
-                        row_count++;
-                        auto res_type_char = req.query().query()[7];
-                        int columnCount = sqlite3_column_count(statement);
-                        if (columnCount == 4) { // resultが4つの時(select * の時)
-                            response::Sysbench result_record({"id", "k", "c", "pad"}, columnCount); // TODO change table by select query
-                            for (int j = 0; j < columnCount; j++) {
-                                int columnType = sqlite3_column_type(statement, j);
-                                switch (columnType) {
-                                    case SQLITE_TEXT:
-                                        result_record.addColumn(sqlite3_column_text(statement, j));
-                                        break;
-                                    case SQLITE_INTEGER:
-                                        result_record.addColumn(sqlite3_column_int(statement, j));
-                                        break;
-                                }
-                            }
-                            results.emplace(result_record);
-                        } else if (res_type_char == 'c' || res_type_char == 'D') { // DISTINCT or c
-                            response::Sysbench_one result_record({"c"}, columnCount); // TODO change table by select query
-                            for (int j = 0; j < columnCount; j++) {
-                                int columnType = sqlite3_column_type(statement, j);
-                                switch (columnType) {
-                                    case SQLITE_TEXT:
-                                        result_record.addColumn(sqlite3_column_text(statement, j));
-                                        break;
-                                    case SQLITE_INTEGER:
-                                        result_record.addColumn(sqlite3_column_int(statement, j));
-                                        break;
-                                }
-                            }
-                            results.emplace(result_record);
-                        } else if (res_type_char == 's' || res_type_char == 'S') { // select sum
-                            response::Sysbench_one result_record({"sum"}, columnCount); // TODO change table by select query
-                            for (int j = 0; j < columnCount; j++) {
-                                int columnType = sqlite3_column_type(statement, j);
-                                switch (columnType) {
-                                    case SQLITE_TEXT:
-                                        result_record.addColumn(sqlite3_column_text(statement, j));
-                                        break;
-                                    case SQLITE_INTEGER:
-                                        result_record.addColumn(sqlite3_column_int(statement, j));
-                                        break;
-                                }
-                            }
-                            results.emplace(result_record);
-                        }
-                    }
-                } else {
-                    printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
-                }
-                sqlite3_reset(statement);
-                sqlite3_finalize(statement);
+        bool
+        get_from_local(sqlite3 *in_mem_db, const Request &req, std::queue<response::sysbench_result_type> &results) {
+            if (!req.query().isSelect()) { return false; }
 
-                return row_count > 0;
+            std::unordered_map<char, std::pair<std::vector<std::string>, RecordConstructor>> result_types = {
+                    {'*', {{"id", "k", "c", "pad"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"id", "k", "c", "pad"}, count); }}},
+                    {'c', {{"c"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"c"}, count); }}},
+                    {'D', {{"c"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"c"}, count); }}},
+                    {'s', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"sum"}, count); }}},
+                    {'S', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"sum"}, count); }}},
+            };
+
+            int row_count;
+            sqlite3_stmt *statement = nullptr;
+            int prepare_rc = sqlite3_prepare_v2(in_mem_db, req.query().query().data(), -1, &statement, nullptr);
+            if (prepare_rc == SQLITE_OK) {
+                while (sqlite3_step(statement) == SQLITE_ROW) {
+                    row_count++;
+                    auto res_type_char = req.query().query()[7];
+                    int columnCount = sqlite3_column_count(statement);
+//                    if (columnCount == 4) { // resultが4つの時(select * の時)
+//                        response::Sysbench result_record({"id", "k", "c", "pad"},
+//                                                         columnCount); // TODO change table by select query
+//                        populateColumns(statement, result_record, columnCount);
+//                        results.emplace(result_record);
+//                    } else if (res_type_char == 'c' || res_type_char == 'D') { // DISTINCT or c
+//                        response::Sysbench_one result_record({"c"}, columnCount); // TODO change table by select query
+//                        populateColumns(statement, result_record, columnCount);
+//                        results.emplace(result_record);
+//                    } else if (res_type_char == 's' || res_type_char == 'S') { // select sum
+//                        response::Sysbench_one result_record({"sum"}, columnCount); // TODO change table by select query
+//                        populateColumns(statement, result_record, columnCount);
+//                        results.emplace(result_record);
+//                    }
+
+                    if(result_types.find(res_type_char) != result_types.end() || columnCount == 4) {
+                        auto [column_names, constructor] = result_types[res_type_char];
+                        auto result_record = constructor(column_names, columnCount);
+                        populateColumns(statement, result_record, columnCount);
+                        results.emplace(result_record);
+                    }
+
+                }
+            } else {
+                printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
             }
+            sqlite3_reset(statement);
+            sqlite3_finalize(statement);
+
+            return row_count > 0;
+        }
+
+        void populateColumns(sqlite3_stmt *statement, std::variant<response::Sysbench, response::Sysbench_one> &result_record_variant, int columnCount) {
+            std::visit([&](auto& result_record) {
+                for (int j = 0; j < columnCount; j++) {
+                    int columnType = sqlite3_column_type(statement, j);
+                    switch (columnType) {
+                        case SQLITE_TEXT:
+                            result_record.addColumn(sqlite3_column_text(statement, j));
+                            break;
+                        case SQLITE_INTEGER:
+                            result_record.addColumn(sqlite3_column_int(statement, j));
+                            break;
+                    }
+                }
+            }, result_record_variant);
         }
 
     public:
