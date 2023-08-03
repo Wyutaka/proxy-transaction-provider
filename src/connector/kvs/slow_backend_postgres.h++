@@ -128,7 +128,7 @@ namespace transaction {
         const char SUM_CHAR = 's';
         const char COLUMN_CHAR = 'c';
 
-        using RecordConstructor = std::function<std::variant<response::Sysbench, response::Sysbench_one>(const std::vector<std::string>&, int)>;
+        using RecordConstructor = std::function<response::sysbench_result_type(const std::vector<std::string>&, int)>;
 
         template<std::size_t N>
         auto createSysbenchLambda() {
@@ -145,11 +145,11 @@ namespace transaction {
             if (!req.query().isSelect()) { return false; }
 
             std::unordered_map<char, std::pair<std::vector<std::string>, RecordConstructor>> result_types = {
-                    {'*', {{"id", "k", "c", "pad"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"id", "k", "c", "pad"}, count); }}},
-                    {'c', {{"c"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"c"}, count); }}},
-                    {'D', {{"c"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"c"}, count); }}},
-                    {'s', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"sum"}, count); }}},
-                    {'S', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> std::variant<response::Sysbench, response::Sysbench_one> { return response::Sysbench({"sum"}, count); }}},
+                    {'*', {{"id", "k", "c", "pad"}, [](const std::vector<std::string>& columns, int count) -> response::sysbench_result_type { return response::Sysbench({"id", "k", "c", "pad"}, count); }}},
+                    {'c', {{"c"}, [](const std::vector<std::string>& columns, int count) -> response::sysbench_result_type { return response::Sysbench({"c"}, count); }}},
+                    {'D', {{"c"}, [](const std::vector<std::string>& columns, int count) -> response::sysbench_result_type { return response::Sysbench({"c"}, count); }}},
+                    {'s', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> response::sysbench_result_type { return response::Sysbench({"sum"}, count); }}},
+                    {'S', {{"sum"}, [](const std::vector<std::string>& columns, int count) -> response::sysbench_result_type { return response::Sysbench({"sum"}, count); }}},
             };
 
             int row_count;
@@ -192,7 +192,7 @@ namespace transaction {
             return row_count > 0;
         }
 
-        void populateColumns(sqlite3_stmt *statement, std::variant<response::Sysbench, response::Sysbench_one> &result_record_variant, int columnCount) {
+        void populateColumns(sqlite3_stmt *statement, response::sysbench_result_type &result_record_variant, int columnCount) {
             std::visit([&](auto& result_record) {
                 for (int j = 0; j < columnCount; j++) {
                     int columnType = sqlite3_column_type(statement, j);

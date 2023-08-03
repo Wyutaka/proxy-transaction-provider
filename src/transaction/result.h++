@@ -148,25 +148,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-    namespace response {
-        namespace detail {
+namespace response {
+    namespace detail {
 
-            inline int PackBytes(std::vector<unsigned char>& bytes, const std::string& str) {
-                std::uint32_t len_be = htobe32(str.size()); // 文字列の長さを取得
-                auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
-                bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
-                bytes.insert(bytes.end(), str.begin(), str.begin() + str.size()); // データの中身を入力
-                return str.size() + 4; // // 4はデータ長分
-            }
+        inline int PackBytes(std::vector<unsigned char> &bytes, const std::string &str) {
+            std::uint32_t len_be = htobe32(str.size()); // 文字列の長さを取得
+            auto len_be_first = static_cast<const unsigned char *>(static_cast<const void *>(&len_be)); // len_beの1バイト目
+            bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
+            bytes.insert(bytes.end(), str.begin(), str.begin() + str.size()); // データの中身を入力
+            return str.size() + 4; // // 4はデータ長分
+        }
 
-            inline size_t PackBytes(std::vector<unsigned char>& bytes, const unsigned char* str) {
-                std::string_view str_v = std::string_view(reinterpret_cast<const char *>(str));
-                std::uint32_t len_be = htobe32(str_v.size()); // 文字列の長さを取得
-                auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
-                bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
-                bytes.insert(bytes.end(), str_v.begin(), str_v.begin() + str_v.size()); // データの中身を入力
-                return str_v.size() + 4;
-            }
+        inline size_t PackBytes(std::vector<unsigned char> &bytes, const unsigned char *str) {
+            std::string_view str_v = std::string_view(reinterpret_cast<const char *>(str));
+            std::uint32_t len_be = htobe32(str_v.size()); // 文字列の長さを取得
+            auto len_be_first = static_cast<const unsigned char *>(static_cast<const void *>(&len_be)); // len_beの1バイト目
+            bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
+            bytes.insert(bytes.end(), str_v.begin(), str_v.begin() + str_v.size()); // データの中身を入力
+            return str_v.size() + 4;
+        }
 
 // cassandraのint用
 //            inline void PackBytes(std::vector<unsigned char>& bytes, int integer) { // columnのバイト列の長さとcolumのデータ charに直す
@@ -184,35 +184,35 @@
 //            }
 
 // TODO INTの場合は数字をcharに変換する (ex.32 -> 0x33 0x32)
-            inline int PackBytes(std::vector<unsigned char>& bytes, int integer) { // columnのバイト列の長さとcolumのデータ charに直す
+        inline int PackBytes(std::vector<unsigned char> &bytes, int integer) { // columnのバイト列の長さとcolumのデータ charに直す
 
-                char buf[12]; // 桁数を取る必要がある
+            char buf[12]; // 桁数を取る必要がある
 //                int size = std::string_view(reinterpret_cast<const char *>(buf)).length();
-                sprintf(buf, "%d", integer); // bufにintegerの文字列コピー
-                size_t size = strlen(buf);
-                auto len_be = htobe32(size);
-                auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
-                bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
-                bytes.insert(bytes.end(), buf, buf + size); // データサイズを入力
-                return size + 4; // 4はデータ長分
+            sprintf(buf, "%d", integer); // bufにintegerの文字列コピー
+            size_t size = strlen(buf);
+            auto len_be = htobe32(size);
+            auto len_be_first = static_cast<const unsigned char *>(static_cast<const void *>(&len_be)); // len_beの1バイト目
+            bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be)); // データ長を入力
+            bytes.insert(bytes.end(), buf, buf + size); // データサイズを入力
+            return size + 4; // 4はデータ長分
+        }
+
+        inline void PackBytes(std::vector<unsigned char> &bytes, float floating) { // columnのバイト列の長さとcolumのデータ
+            std::uint32_t len_be = htobe32(4);
+            auto len_be_first = static_cast<const unsigned char *>(static_cast<const void *>(&len_be));
+            bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be));
+
+            auto int_first = reinterpret_cast<const unsigned char *>(&floating);
+            // float の場合は リトルエンディアン
+            auto itr = int_first[0];
+            for (int i = 3; i >= 0; i--) {
+                bytes.push_back(int_first[i]);
             }
+        }
 
-            inline void PackBytes(std::vector<unsigned char>& bytes, float floating) { // columnのバイト列の長さとcolumのデータ
-                std::uint32_t len_be = htobe32(4);
-                auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be));
-                bytes.insert(bytes.end(), len_be_first, len_be_first + sizeof(len_be));
+        inline void SetBytes(std::vector<unsigned char> &bytes) {}
 
-                auto int_first = reinterpret_cast<const unsigned char*>(&floating);
-                // float の場合は リトルエンディアン
-                auto itr = int_first[0];
-                for(int i = 3; i >= 0; i--) {
-                    bytes.push_back(int_first[i]);
-                }
-            }
-
-            inline void SetBytes(std::vector<unsigned char>& bytes) {}
-
-            inline void SetBytes(int &size, std::vector<unsigned char>& bytes) {}
+        inline void SetBytes(int &size, std::vector<unsigned char> &bytes) {}
 
 //            template<class Column, class... Columns>
 //            void SetBytes(std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
@@ -223,13 +223,13 @@
 //                SetBytes(bytes, std::forward<Columns>(columns)...);
 //            }
 
-            template<class Column, class... Columns>
-            void SetBytes(int &size, std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
-                // pack
-                size += PackBytes(bytes, std::forward<Column>(column));
+        template<class Column, class... Columns>
+        void SetBytes(int &size, std::vector<unsigned char> &bytes, Column &&column, Columns &&... columns) {
+            // pack
+            size += PackBytes(bytes, std::forward<Column>(column));
 
-                SetBytes(size, bytes, std::forward<Columns>(columns)...);
-            }
+            SetBytes(size, bytes, std::forward<Columns>(columns)...);
+        }
 
 
 #define INSERT_BYTES4(target, data) do{\
@@ -243,68 +243,70 @@
                 target.insert(target.end(), int_first, int_first + 2);\
             }while(0)
 
+    }
+
+    // usage
+    //          response::GetItem res("tiny_tpc_c", "item", {"i_name", "i_price", "i_data"}, column_count);
+    //          res.addRow(std::string(sqlite3_column_name(stmt, 0)), float(sqlite3_column_int(stmt, 1)), std::string(sqlite3_column_name(stmt, 2)));
+    //          addQueryOnly(std::move(query));
+    template<class... Columns>
+    class BasicResult {
+    private:
+        std::vector<unsigned char> bytes_;
+        int message_size = 6; // データ長4バイト+コラム数2バイト
+
+    public:
+//            BasicResult(std::string_view ks, std::string_view tbl, const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
+        BasicResult(const std::array<std::string_view, sizeof...(Columns)> &columns,
+                    std::uint32_t column_count) { // ヘッダの書き込み
+
+            /*0x00,0x00,0x00,0x02 // Rows
+        0x00,0x00,0x00,0x01  // flags 1
+        0x00,0x00,0x00,0x12  // column count
+        0x00,0x06 // len(ksname)
+        0x73,0x79,0x73,0x74,0x65,0x6d // ksname
+        0x00,0x05 // len(tablename)
+        0x6c,0x6f,0x63,0x61,0x6c // tablename*/
+// ヘッダ情報のh
+            if (columns.size() != column_count) { return; }
+            bytes_.push_back(0x44); // D
+            INSERT_BYTES4(bytes_, 0); // データ長 後から入れる(bytes.insert(1, size(hex)))
+            INSERT_BYTES2(bytes_, column_count); // コラム数
+            // データ長、データ -> addRowで実装
+
         }
 
-        // usage
-        //          response::GetItem res("tiny_tpc_c", "item", {"i_name", "i_price", "i_data"}, column_count);
-        //          res.addRow(std::string(sqlite3_column_name(stmt, 0)), float(sqlite3_column_int(stmt, 1)), std::string(sqlite3_column_name(stmt, 2)));
-        //          addQueryOnly(std::move(query));
-        template<class... Columns>
-        class BasicResult {
-        private:
-            std::vector<unsigned char> bytes_;
-            int message_size = 6; // データ長4バイト+コラム数2バイト
 
-        public:
-//            BasicResult(std::string_view ks, std::string_view tbl, const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
-                BasicResult(const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
+    public:
+        void addRow(Columns... columns) {
+            detail::SetBytes(message_size, bytes_, columns...);
+        }
 
-    /*0x00,0x00,0x00,0x02 // Rows
-0x00,0x00,0x00,0x01  // flags 1
-0x00,0x00,0x00,0x12  // column count
-0x00,0x06 // len(ksname)
-0x73,0x79,0x73,0x74,0x65,0x6d // ksname
-0x00,0x05 // len(tablename)
-0x6c,0x6f,0x63,0x61,0x6c // tablename*/
-// ヘッダ情報のh
-                if (columns.size() != column_count ) {return;}
-                bytes_.push_back(0x44); // D
-                INSERT_BYTES4(bytes_, 0); // データ長 後から入れる(bytes.insert(1, size(hex)))
-                INSERT_BYTES2(bytes_, column_count); // コラム数
-                // データ長、データ -> addRowで実装
+        template<class Column>
+        void addColumn(Column column) {
+            detail::SetBytes(message_size, bytes_, column);
+        }
 
+        void end_message() {
+
+        }
+
+        void next_nessage() {
+
+        }
+
+        std::vector<unsigned char> &bytes() noexcept {
+            auto len_be = htobe32(message_size);
+            auto len_be_first = static_cast<const unsigned char *>(static_cast<const void *>(&len_be)); // len_beの1バイト目
+            for (int i = 1; i <= 4; i++) {
+                bytes_.at(i) = len_be_first[i - 1]; // データ長更新
             }
-
-
-        public:
-            void addRow(Columns... columns) {
-                detail::SetBytes(message_size, bytes_, columns...);
-            }
-
-            template<class Column>
-            void addColumn(Column column) {
-                detail::SetBytes(message_size, bytes_, column);
-            }
-
-            void end_message() {
-
-            }
-
-            void next_nessage() {
-
-            }
-
-            std::vector<unsigned char>& bytes() noexcept {
-                auto len_be = htobe32(message_size);
-                auto len_be_first = static_cast<const unsigned char*>(static_cast<const void*>(&len_be)); // len_beの1バイト目
-                for (int i = 1; i <= 4; i++) {
-                    bytes_.at(i) = len_be_first[i-1]; // データ長更新
-                }
 //                bytes_.insert(bytes_.begin() + 1, len_be_first, len_be_first + 4);
 //                INSERT_BYTES4(bytes_, message_size);
 //                INSERT_BYTES2(bytes_, 1);
-                return bytes_;}
-        };
+            return bytes_;
+        }
+    };
 
 #undef INSERT_BYTES4
 #undef INSERT_BYTES2
@@ -315,11 +317,11 @@
 //        using GetItem = BasicResult<std::string, float, std::string>;
 //        using GetStock = BasicResult<int, std::string, std::string, std::string, std::string, std::string, std::string, std::string, std::string, std::string, std::string, std::string>;
 //    using Sysbench = BasicResult<std::string, int, int, int>;
-            using Sysbench = BasicResult<int, int, std::string, std::string>;
-            using Sysbench_one = BasicResult<std::string>;
-            using Sysbench_sum = BasicResult<int>;
+    using Sysbench = BasicResult<int, int, std::string, std::string>;
+    using Sysbench_one = BasicResult<std::string>;
+    using Sysbench_sum = BasicResult<int>;
 
-            using sysbench_result_type = std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>;
+    using sysbench_result_type = std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>;
 
 
     /* TODO クエリに対するリクエストを返す
@@ -329,34 +331,50 @@
                      43         |  xx xx xx xx | xx xx ...  |      5a      | 00 00 00 05 |  {49/54/45}
                 */
 
-        unsigned char micro_tbl_header[] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42, 0x00,
-                                            0x00, 0x01, 0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x66, 0x69,
-                                            0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00,
-                                            0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32, 0x00, 0x00, 0x00,
-                                            0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
-                                            0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
-                                            0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00};
+    unsigned char micro_tbl_header[] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42,
+                                        0x00,
+                                        0x00, 0x01, 0x00, 0x00, 0x04, 0x13, 0xff, 0xff, 0x00, 0x00, 0x00, 0x25, 0x00,
+                                        0x00, 0x66, 0x69,
+                                        0x65, 0x6c, 0x64, 0x31, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00,
+                                        0x00, 0x17, 0x00,
+                                        0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x32,
+                                        0x00, 0x00, 0x00,
+                                        0x42, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff,
+                                        0xff, 0x00, 0x00,
+                                        0x66, 0x69, 0x65, 0x6c, 0x64, 0x33, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x04,
+                                        0x00, 0x00, 0x00,
+                                        0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00};
 
-    std::basic_string<unsigned char> sysbench_tbl_header = {0x54, 0x00, 0x00, 0x00, 0x59, 0x00, 0x04, 0x69, 0x64, 0x00, 0x00, 0x00, 0x43, 0xee,
-                                                   0x00, 0x01, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x6b, 0x00,
-                                                   0x00, 0x00, 0x43, 0xee, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff,
-                                                   0x00, 0x00, 0x63, 0x00, 0x00, 0x00, 0x43, 0xee, 0x00, 0x03, 0x00, 0x00, 0x04, 0x12, 0xff, 0xff,
-                                                   0x00, 0x00, 0x00, 0x7c, 0x00, 0x00, 0x70, 0x61, 0x64, 0x00, 0x00, 0x00, 0x43, 0xee, 0x00, 0x04,
-                                                   0x00, 0x00, 0x04, 0x12, 0xff, 0xff, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00};
+    std::basic_string<unsigned char> sysbench_tbl_header = {0x54, 0x00, 0x00, 0x00, 0x59, 0x00, 0x04, 0x69, 0x64, 0x00,
+                                                            0x00, 0x00, 0x43, 0xee,
+                                                            0x00, 0x01, 0x00, 0x00, 0x00, 0x17, 0x00, 0x04, 0xff, 0xff,
+                                                            0xff, 0xff, 0x00, 0x00, 0x6b, 0x00,
+                                                            0x00, 0x00, 0x43, 0xee, 0x00, 0x02, 0x00, 0x00, 0x00, 0x17,
+                                                            0x00, 0x04, 0xff, 0xff, 0xff, 0xff,
+                                                            0x00, 0x00, 0x63, 0x00, 0x00, 0x00, 0x43, 0xee, 0x00, 0x03,
+                                                            0x00, 0x00, 0x04, 0x12, 0xff, 0xff,
+                                                            0x00, 0x00, 0x00, 0x7c, 0x00, 0x00, 0x70, 0x61, 0x64, 0x00,
+                                                            0x00, 0x00, 0x43, 0xee, 0x00, 0x04,
+                                                            0x00, 0x00, 0x04, 0x12, 0xff, 0xff, 0x00, 0x00, 0x00, 0x40,
+                                                            0x00, 0x00};
 
-    std::basic_string<unsigned char> sysbench_tbl_c_header = {0x54, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x01, 0x63, 0x00, 0x00, 0x00, 0x44, 0xba, 0x00,
-                                                     0x03, 0x00, 0x00, 0x04, 0x12, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x00};
+    std::basic_string<unsigned char> sysbench_tbl_c_header = {0x54, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x01, 0x63, 0x00,
+                                                              0x00, 0x00, 0x44, 0xba, 0x00,
+                                                              0x03, 0x00, 0x00, 0x04, 0x12, 0xff, 0xff, 0x00, 0x00,
+                                                              0x00, 0x7c, 0x00, 0x00};
 
-    std::basic_string<unsigned char> sysbench_tbl_sum_header = {0x54, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x73, 0x75, 0x6d, 0x00, 0x00, 0x00, 0x00,
-                                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x08, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00};
+    std::basic_string<unsigned char> sysbench_tbl_sum_header = {0x54, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x73, 0x75,
+                                                                0x6d, 0x00, 0x00, 0x00, 0x00,
+                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x08,
+                                                                0xff, 0xff, 0xff, 0xff, 0x00, 0x00};
 
     std::basic_string<unsigned char> sysbench_slct_cmd = {
-                0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00
-        };
+            0x43, 0x00, 0x00, 0x00, 0x0d, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31, 0x00
+    };
     std::basic_string<unsigned char> sysbench_insrt_cmd = {
-                0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00
-        };
+            0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20, 0x31, 0x00
+    };
     std::basic_string<unsigned char> sysbench_status = {
-                0x5a, 0x00, 0x00, 0x00, 0x05, 0x49
-        };
-    }
+            0x5a, 0x00, 0x00, 0x00, 0x05, 0x49
+    };
+}
