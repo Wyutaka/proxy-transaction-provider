@@ -160,20 +160,6 @@ namespace transaction {
                     row_count++;
                     auto res_type_char = req.query().query()[7];
                     int columnCount = sqlite3_column_count(statement);
-//                    if (columnCount == 4) { // resultが4つの時(select * の時)
-//                        response::Sysbench result_record({"id", "k", "c", "pad"},
-//                                                         columnCount); // TODO change table by select query
-//                        populateColumns(statement, result_record, columnCount);
-//                        results.emplace(result_record);
-//                    } else if (res_type_char == 'c' || res_type_char == 'D') { // DISTINCT or c
-//                        response::Sysbench_one result_record({"c"}, columnCount); // TODO change table by select query
-//                        populateColumns(statement, result_record, columnCount);
-//                        results.emplace(result_record);
-//                    } else if (res_type_char == 's' || res_type_char == 'S') { // select sum
-//                        response::Sysbench_one result_record({"sum"}, columnCount); // TODO change table by select query
-//                        populateColumns(statement, result_record, columnCount);
-//                        results.emplace(result_record);
-//                    }
 
                     if(result_types.find(res_type_char) != result_types.end() || columnCount == 4) {
                         auto [column_names, constructor] = result_types[res_type_char];

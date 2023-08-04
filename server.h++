@@ -48,6 +48,9 @@ namespace tcp_proxy {
         void handle_downstream_write(const boost::system::error_code& error);
         void handle_downstream_write_proxy(const boost::system::error_code& error);
 //        void download_result(PGconn &conn, const transaction::Request &req, sqlite3 *in_mem_db);
+        void connectToPostgres(PGconn *_conn, const char* backend_postgres_connInfo);
+        void initializeSQLite(PGconn *_conn, const char* text_create_tbl);
+        void fetchAndCacheData(PGconn* _conn, sqlite3* in_mem_db, const char* text_download_tbl);
 
         socket_type downstream_socket_;
 

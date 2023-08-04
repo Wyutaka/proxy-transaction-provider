@@ -40,6 +40,7 @@ namespace tcp_proxy {
               _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
               _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
               queue_sender(pool::ThreadPoolExecutor(1)) {
+
         // cassandraのコネクション
         // 注意：keyspaceは決め打ち
         cass_cluster_set_contact_points(_cluster.get(), backend_host);
@@ -53,39 +54,56 @@ namespace tcp_proxy {
             std::terminate();
         }
 
-//                // postgresのコネクションを作成
+        // postgresのコネクション
         _conn = PQconnectdb(backend_postgres_conninfo);
         /* バックエンドとの接続確立に成功したかを確認する */
         if (PQstatus(_conn) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
                     PQerrorMessage(_conn));
-//            exit_nicely(_conn);
+            exit_nicely(_conn);
         }
 
-        // インメモリDB用のsqlite3の初期化
+        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
+        bridge::initializeSQLite(_conn, text_create_tbl_sbtest1);
+        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
+    }
+
+    // PostgreSQLデータベースへの接続の設定
+    void bridge::connectToPostgres(PGconn *_conn, const char* backend_postgres_connInfo) {
+        _conn = PQconnectdb(backend_postgres_connInfo);
+        if (PQstatus(_conn) != CONNECTION_OK) {
+            fprintf(stderr, "Connection to database failed: %s",
+                    PQerrorMessage(_conn));
+            exit_nicely(_conn);
+        }
+    }
+
+    // SQLiteのインメモリデータベースの初期化
+    void bridge::initializeSQLite(PGconn *_conn, const char* text_create_tbl) {
+        sqlite3* in_mem_db;
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
             std::cout << "FILE OPEN Error";
-//            close();
+            close();
         }
 
-        // sqlite3 sbtest1挿入
-        ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
+        ret = sqlite3_exec(in_mem_db, text_create_tbl,
                            NULL, NULL, NULL);
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
         }
+    }
 
-        // バックエンドからデータを引き継いで返す
+    // PostgreSQLデータベースからデータを取得して、それをSQLiteデータベースに保存する
+    void bridge::fetchAndCacheData(PGconn* _conn, sqlite3* in_mem_db, const char* text_download_tbl) {
         int nFields;
-        int i, j;
         PGresult *res;
         /* トランザクションブロックを開始する。 */
         res = PQexec(_conn, "BEGIN");
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
             PQclear(res);
-//            exit_nicely(_conn);
+            exit_nicely(_conn);
         }
 
         PQclear(res);
@@ -94,7 +112,7 @@ namespace tcp_proxy {
          * データベースのシステムカタログpg_databaseから行を取り出す。
          */
         std::string get_cursor_query = "DECLARE myportal CURSOR FOR ";
-        res = PQexec(_conn, (get_cursor_query + text_download_sbtest1).c_str()); // TODO クエリの反映
+        res = PQexec(_conn, (get_cursor_query + text_download_tbl).c_str()); // TODO クエリの反映
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(_conn));
             PQclear(res);
@@ -137,6 +155,8 @@ namespace tcp_proxy {
         /* トランザクションを終了する */
         res = PQexec(_conn, "END");
         PQclear(res);
+
+        // 省略: FETCH, データの処理と挿入, トランザクションの終了など
     }
 
     void download_result(PGconn &conn, const transaction::Request &req, sqlite3 *in_mem_db) {
