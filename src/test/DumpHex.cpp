@@ -2,8 +2,7 @@
 // Created by user1 on 22/09/05.
 //
 
-//#include "DumpHex.h++"
-
+#include "DumpHex.h++"
 #include <ctype.h>
 #include <stdio.h>
 #include <string_view>

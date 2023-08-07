@@ -214,15 +214,6 @@ namespace response {
 
         inline void SetBytes(int &size, std::vector<unsigned char> &bytes) {}
 
-//            template<class Column, class... Columns>
-//            void SetBytes(std::vector<unsigned char>& bytes, Column&& column, Columns&&... columns) {
-//                // pack
-//                int ds = 0;
-//                ds += PackBytes(bytes, std::forward<Column>(column));
-//
-//                SetBytes(bytes, std::forward<Columns>(columns)...);
-//            }
-
         template<class Column, class... Columns>
         void SetBytes(int &size, std::vector<unsigned char> &bytes, Column &&column, Columns &&... columns) {
             // pack
@@ -259,23 +250,21 @@ namespace response {
 //            BasicResult(std::string_view ks, std::string_view tbl, const std::array<std::string_view, sizeof...(Columns)>& columns, std::uint32_t column_count) { // ヘッダの書き込み
         BasicResult(const std::array<std::string_view, sizeof...(Columns)> &columns,
                     std::uint32_t column_count) { // ヘッダの書き込み
-
-            /*0x00,0x00,0x00,0x02 // Rows
-        0x00,0x00,0x00,0x01  // flags 1
-        0x00,0x00,0x00,0x12  // column count
-        0x00,0x06 // len(ksname)
-        0x73,0x79,0x73,0x74,0x65,0x6d // ksname
-        0x00,0x05 // len(tablename)
-        0x6c,0x6f,0x63,0x61,0x6c // tablename*/
-// ヘッダ情報のh
             if (columns.size() != column_count) { return; }
             bytes_.push_back(0x44); // D
             INSERT_BYTES4(bytes_, 0); // データ長 後から入れる(bytes.insert(1, size(hex)))
             INSERT_BYTES2(bytes_, column_count); // コラム数
             // データ長、データ -> addRowで実装
-
         }
 
+        /*0x00,0x00,0x00,0x02 // Rows
+    0x00,0x00,0x00,0x01  // flags 1
+    0x00,0x00,0x00,0x12  // column count
+    0x00,0x06 // len(ksname)
+    0x73,0x79,0x73,0x74,0x65,0x6d // ksname
+    0x00,0x05 // len(tablename)
+    0x6c,0x6f,0x63,0x61,0x6c // tablename*/
+// ヘッダ情報のh
 
     public:
         void addRow(Columns... columns) {
@@ -301,9 +290,6 @@ namespace response {
             for (int i = 1; i <= 4; i++) {
                 bytes_.at(i) = len_be_first[i - 1]; // データ長更新
             }
-//                bytes_.insert(bytes_.begin() + 1, len_be_first, len_be_first + 4);
-//                INSERT_BYTES4(bytes_, message_size);
-//                INSERT_BYTES2(bytes_, 1);
             return bytes_;
         }
     };

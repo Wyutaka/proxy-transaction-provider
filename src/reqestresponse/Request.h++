@@ -1,9 +1,7 @@
 //
 // Created by mint25mt on 2022/08/23.
 //
-
-#ifndef MY_PROXY_REQUEST_H
-#define MY_PROXY_REQUEST_H
+#pragma once
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -17,7 +15,6 @@
 #include <any>
 #include "src/test/search.h++"
 #include <regex>
-#include "../test/DumpHex.h++"
 
 namespace transaction {
     using PeerV4 = BasicPeer<std::string>;
@@ -58,4 +55,3 @@ namespace transaction {
     };
 }
 
-#endif //MY_PROXY_REQUEST_H

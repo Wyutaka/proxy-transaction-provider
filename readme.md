@@ -136,7 +136,7 @@ associated completion handler.
 
 #### Bridge Shutdown Process
 When either of the end points terminate their respective connection to the
-proxy, the proxy will proceed to close (or shutdown) the other corresponding
+proxy, the proxy will proceed to close_and_reset (or shutdown) the other corresponding
 connection. This includes releasing any outstanding asynchronous requests,
 culminating in the reference count of the bridge (client session) reaching zero
 at which point the bridge instance itself will subsequently have its destructor

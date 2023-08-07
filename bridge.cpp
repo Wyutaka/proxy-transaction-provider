@@ -41,18 +41,18 @@ namespace tcp_proxy {
               _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
               queue_sender(pool::ThreadPoolExecutor(1)) {
 
-        // cassandraのコネクション
-        // 注意：keyspaceは決め打ち
-        cass_cluster_set_contact_points(_cluster.get(), backend_host);
-        cass_cluster_set_protocol_version(_cluster.get(), CASS_PROTOCOL_VERSION_V4);
-        _connectFuture =
-                CASS_SHARED_PTR(future, cass_session_connect_keyspace_n(_session.get(), _cluster.get(), "txbench",
-                                                                        7)); //7-> keyspace_length;
-
-        if (cass_future_error_code(_connectFuture.get()) != CASS_OK) {
-            std::cerr << "cannot connect to Cassandra" << std::endl;
-            std::terminate();
-        }
+//        // cassandraのコネクション
+//        // 注意：keyspaceは決め打ち
+//        cass_cluster_set_contact_points(_cluster.get(), backend_host);
+//        cass_cluster_set_protocol_version(_cluster.get(), CASS_PROTOCOL_VERSION_V4);
+//        _connectFuture =
+//                CASS_SHARED_PTR(future, cass_session_connect_keyspace_n(_session.get(), _cluster.get(), "txbench",
+//                                                                        7)); //7-> keyspace_length;
+//
+//        if (cass_future_error_code(_connectFuture.get()) != CASS_OK) {
+//            std::cerr << "cannot connect to Cassandra" << std::endl;
+//            std::terminate();
+//        }
 
         // postgresのコネクション
         _conn = PQconnectdb(backend_postgres_conninfo);
@@ -63,13 +63,13 @@ namespace tcp_proxy {
             exit_nicely(_conn);
         }
 
-        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
+//        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
         bridge::initializeSQLite(_conn, text_create_tbl_sbtest1);
-        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
+//        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
     }
 
     // PostgreSQLデータベースへの接続の設定
-    void bridge::connectToPostgres(PGconn *_conn, const char* backend_postgres_connInfo) {
+    void bridge::connectToPostgres(PGconn *_conn, const char *backend_postgres_connInfo) {
         _conn = PQconnectdb(backend_postgres_connInfo);
         if (PQstatus(_conn) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
@@ -79,12 +79,12 @@ namespace tcp_proxy {
     }
 
     // SQLiteのインメモリデータベースの初期化
-    void bridge::initializeSQLite(PGconn *_conn, const char* text_create_tbl) {
-        sqlite3* in_mem_db;
+    void bridge::initializeSQLite(PGconn *_conn, const char *text_create_tbl) {
+        sqlite3 *in_mem_db;
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
             std::cout << "FILE OPEN Error";
-            close();
+            close_and_reset();
         }
 
         ret = sqlite3_exec(in_mem_db, text_create_tbl,
@@ -95,7 +95,7 @@ namespace tcp_proxy {
     }
 
     // PostgreSQLデータベースからデータを取得して、それをSQLiteデータベースに保存する
-    void bridge::fetchAndCacheData(PGconn* _conn, sqlite3* in_mem_db, const char* text_download_tbl) {
+    void bridge::fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl) {
         int nFields;
         PGresult *res;
         /* トランザクションブロックを開始する。 */
@@ -163,7 +163,7 @@ namespace tcp_proxy {
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
             std::cout << "FILE OPEN Error";
-//            close();
+//            close_and_reset();
         }
         int nFields;
         int i, j;
@@ -245,6 +245,9 @@ namespace tcp_proxy {
 
     void bridge::start(const std::string &upstream_host, unsigned short upstream_port) {
         // Attempt connection to remote server (upstream side)
+        std::cout << "upstream_host " << upstream_host << std::endl;
+        std::cout << "upstream_port " << upstream_port << std::endl;
+
         upstream_socket_.async_connect(
                 ip::tcp::endpoint(
                         boost::asio::ip::address::from_string(upstream_host),
@@ -273,7 +276,10 @@ namespace tcp_proxy {
                                 boost::asio::placeholders::bytes_transferred));
         } else {
             std::cout << "handle_upstream_connect_err" << std::endl;
-            close();
+            // error の内容を表示
+            std::cout << "Error code: " << error.value() << std::endl;
+            std::cout << "Error message: " << error.message() << std::endl;
+            close_and_reset();
         }
     }
 
@@ -292,7 +298,7 @@ namespace tcp_proxy {
         } else {
 //            std::cout << "handle_upstream_read_err" << std::endl;
 //            std::cout << error.message() << std::endl;
-//            close();
+//            close_and_reset();
         }
     }
 
@@ -307,7 +313,7 @@ namespace tcp_proxy {
         } else {
             std::cout << "handle_downstream_write_err" << std::endl;
             std::cout << error.message() << std::endl;
-            close();
+            close_and_reset();
         }
     }
 
@@ -322,7 +328,7 @@ namespace tcp_proxy {
         } else {
             std::cout << "handle_downstream_write_err" << std::endl;
             std::cout << error.message() << std::endl;
-            close();
+            close_and_reset();
         }
     }
 
@@ -522,12 +528,13 @@ namespace tcp_proxy {
 //            std::cout << "handle_downstream_read time:" << msec << std::endl;
 
         } else { // if (!error)
-//            std::cout << "handle_downstream_read_err" << std::endl;
-            std::cout << error.message() << std::endl;
-//            close();
+
+            // error の内容を表示
+            std::cout << "Error code: " << error.value() << std::endl;
+            std::cout << "Error message: " << error.message() << std::endl;
+//            close_and_reset();
         }
     }
-
     void bridge::handle_upstream_write(const boost::system::error_code &error) {
         if (!error) {
             downstream_socket_.async_read_some(
@@ -538,11 +545,11 @@ namespace tcp_proxy {
                                 boost::asio::placeholders::bytes_transferred));
         } else {
             std::cout << "handle_upstream_write_err" << std::endl;
-            close();
+            close_and_reset();
         }
     }
 
-    void bridge::close() {
+    void bridge::close_and_reset() {
         boost::mutex::scoped_lock lock(mutex_);
 
         if (downstream_socket_.is_open()) {
@@ -552,6 +559,7 @@ namespace tcp_proxy {
         if (upstream_socket_.is_open()) {
             upstream_socket_.close();
         }
+        bridge::start(upstream_host_, upstream_port_);
     }
 
 }// namespace tcp_proxy

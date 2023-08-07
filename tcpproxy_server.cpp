@@ -49,8 +49,11 @@ int main(int argc, char* argv[])
    const std::string local_host      = argv[1];
    const std::string forward_host    = argv[3];
 
-    std::string forward_hosts[10] = {"192.168.12.23", "192.168.12.22", "192.168.12.21", "192.168.12.20", "192.168.12.19", "192.168.12.18", "192.168.12.17", "192.168.12.16", "192.168.12.15","192.168.12.14"};
-    unsigned short local_ports[10] = {5432, 5433, 5434, 5435, 5436, 5437, 5438, 5439, 5440, 5441};
+//    std::string forward_hosts[10] = {"192.168.12.23", "192.168.12.22", "192.168.12.21", "192.168.12.20", "192.168.12.19", "192.168.12.18", "192.168.12.17", "192.168.12.16", "192.168.12.15","192.168.12.14"};
+//    unsigned short local_ports[10] = {5432, 5433, 5434, 5435, 5436, 5437, 5438, 5439, 5440, 5441};
+
+    std::string forward_hosts[10] = {"192.168.12.22"};
+    unsigned short local_ports[10] = {5432};
 
     boost::thread_group threads;
 //    for (short i = 0; i < 16; i++) {
