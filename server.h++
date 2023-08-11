@@ -65,6 +65,12 @@ namespace tcp_proxy {
         void initializeSQLite(PGconn *_conn, const char *text_create_tbl);
 
         void fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl);
+        std::string replacePlaceholders(const std::string &query, const std::vector<std::string> &params);
+        std::string_view processPostgresBindMessage(unsigned char *data);
+        void parseMessage();
+        uint32_t extractBigEndian4Bytes(const unsigned char* data, size_t start);
+        std::string extractString(const unsigned char *data, size_t& start);
+        void printStatements();
 
 
         socket_type downstream_socket_;
