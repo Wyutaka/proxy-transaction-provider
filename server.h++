@@ -72,6 +72,7 @@ namespace tcp_proxy {
         void parseBindMessage(size_t &index);
         std::string extractString(const unsigned char *data, size_t& start);
         void printStatements();
+        void dumpString(const std::string& str);
 
 
         socket_type downstream_socket_;

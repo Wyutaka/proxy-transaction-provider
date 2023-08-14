@@ -486,7 +486,7 @@ namespace tcp_proxy {
 
             }
                 // postgresのBindメッセージ(PSのバインド)
-            else if (downstream_data_[0] == 0x42) { ;
+            else if (downstream_data_[0] == 0x42) {
                 size_t index = 1;
                 parseBindMessage(index);
 
@@ -575,39 +575,60 @@ namespace tcp_proxy {
     // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
     // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
     void bridge::parseBindMessage(size_t &index) {
-        index += 1;
+        std::cout << "parseBind first:" << index << std::endl;
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+        std::cout << "message size :" << message_size << std::endl;
+
+        std::cout << "parseBind after calculate message_size" << index << std::endl;
         index += 1;
+        std::cout << "parseBind skip portal:" << index << std::endl;
         std::string statement_id = extractString(downstream_data_, index);
+        std::cout << "parseBind after statement_id:" << index << std::endl;
+
+//        std::cout << index << std::endl;
 
         std::string query;
         if (!statement_id.empty() && prepared_statements_lists.count(statement_id)) {
             query = prepared_statements_lists[statement_id];
         }
 
-        index += statement_id.length() + 1;
+//        index += statement_id.length() + 1;
+//        std::cout << "set index = statement_id + 1:" << index << std::endl;
 
         uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
+        std::cout << "get num_parameters" << index << std::endl;
+
         std::vector<uint16_t> type_parameters(num_parameters);
 
         for (uint16_t i = 0; i < num_parameters; ++i) {
             type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
+//            std::cout << "get parameter types" << index << std::endl;
         }
 
         index += 2; // parameter value の先頭2バイトをスキップ
         std::vector<std::string> datas;
         for (uint16_t i = 0; i < num_parameters; ++i) {
             uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
+            std::cout << "get data size" << index << std::endl;
             if (type_parameters[i] == 0) {
                 // Text format
-                datas.emplace_back(reinterpret_cast<const char *>(downstream_data_ + index), data_size);
+                std::cout << "test 1-1" << std::endl;
+                std::string value = extractString(downstream_data_, index);
+                datas.emplace_back(value); // インデックスの更新
+
+                std::cout << "test 1-2" << std::endl;
+
                 index += data_size;
             } else if (type_parameters[i] == 1) {
                 // Binary format - for simplicity, we're assuming it's a 4-byte integer.
                 // A real proxy should handle all binary types properly.
+                std::cout << "test 2-1" << std::endl;
                 uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
+                std::cout << "test 2-2" << std::endl;
+
                 datas.push_back(std::to_string(value));
             }
+            std::cout << "get data " << index << std::endl;
         }
 
         for (size_t i = 0; i < datas.size(); ++i) {
@@ -646,6 +667,14 @@ namespace tcp_proxy {
         std::string result(reinterpret_cast<const char *>(&data[start]), end - start);
         start = end + 1; // Adjust to position after the 0x00 byte
         return result;
+    }
+
+    void bridge::dumpString(const std::string &str) {
+        for (char c: str) {
+            // setw(2)とsetfill('0')は、ヘックスで1桁の場合に2桁になるよう0で埋めたもの
+            std::cout << std::hex << std::setw(2) << std::setfill('0') << (int) (unsigned char) c << " ";
+        }
+        std::cout << std::endl;
     }
 
 
