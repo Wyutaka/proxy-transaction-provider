@@ -485,19 +485,20 @@ namespace tcp_proxy {
                                     boost::asio::placeholders::bytes_transferred));
 
             }
-            // postgresのBindメッセージ(PSのバインド)
-            else if (downstream_data_[0] == 0x42) {;
-                processPostgresBindMessage(downstream_data_);
-                
+                // postgresのBindメッセージ(PSのバインド)
+            else if (downstream_data_[0] == 0x42) { ;
+                size_t index = 1;
+                parseBindMessage(index);
+
                 // とりあえず後ろに流す
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_, bytes_transferred),
                             boost::bind(&bridge::handle_upstream_write,
                                         shared_from_this(),
                                         boost::asio::placeholders::error));
-                
+
             }
-            // postgresのParseメッセージ(PSの宣言)
+                // postgresのParseメッセージ(PSの宣言)
             else if (downstream_data_[0] == 0x50) {
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
                 n = (int) downstream_data_[1] << 24;
@@ -551,29 +552,10 @@ namespace tcp_proxy {
         }
     }
 
-    uint32_t bridge::extractBigEndian4Bytes(const unsigned char* data, size_t start) {
-        return (data[start] << 24) |
-               (data[start + 1] << 16) |
-               (data[start + 2] << 8) |
-               data[start + 3];
-    }
-
-
-    std::string bridge::extractString(const unsigned char *data, size_t& start) {
-        size_t end = start;
-        while (data[end] != 0x00) {
-            ++end;
-        }
-        std::string result(reinterpret_cast<const char*>(&data[start]), end - start);
-        start = end + 1; // Adjust to position after the 0x00 byte
-        return result;
-    }
-
     void bridge::parseMessage() {
         size_t index = 1;
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
-        index += 4;
         std::string statement_id = extractString(downstream_data_, index);
 
         std::string query = extractString(downstream_data_, index);
@@ -583,93 +565,94 @@ namespace tcp_proxy {
         }
 
         if (downstream_data_[1 + message_size] == 'B') {
-            // 'Bを受け取ったときの処理に移動' (ここでは実装していません)
+            index = 2 + message_size; // 1 + message_size + 1
+            parseBindMessage(index);
         } else {
             index = 0;
         }
     }
 
+    // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
+    // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
+    void bridge::parseBindMessage(size_t &index) {
+        index += 1;
+        uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+        index += 1;
+        std::string statement_id = extractString(downstream_data_, index);
+
+        std::string query;
+        if (!statement_id.empty() && prepared_statements_lists.count(statement_id)) {
+            query = prepared_statements_lists[statement_id];
+        }
+
+        index += statement_id.length() + 1;
+
+        uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
+        std::vector<uint16_t> type_parameters(num_parameters);
+
+        for (uint16_t i = 0; i < num_parameters; ++i) {
+            type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
+        }
+
+        index += 2; // parameter value の先頭2バイトをスキップ
+        std::vector<std::string> datas;
+        for (uint16_t i = 0; i < num_parameters; ++i) {
+            uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
+            if (type_parameters[i] == 0) {
+                // Text format
+                datas.emplace_back(reinterpret_cast<const char *>(downstream_data_ + index), data_size);
+                index += data_size;
+            } else if (type_parameters[i] == 1) {
+                // Binary format - for simplicity, we're assuming it's a 4-byte integer.
+                // A real proxy should handle all binary types properly.
+                uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
+                datas.push_back(std::to_string(value));
+            }
+        }
+
+        for (size_t i = 0; i < datas.size(); ++i) {
+            std::string placeholder = "$" + std::to_string(i + 1);
+            size_t pos = query.find(placeholder);
+            if (pos != std::string::npos) {
+                query.replace(pos, placeholder.length(), datas[i]);
+            }
+        }
+
+        std::cout << "Bind query: " << query << std::endl;
+    }
+
+    uint32_t bridge::extractBigEndian4Bytes(const unsigned char *data, size_t &start) {
+        uint32_t val = (data[start] << 24) |
+                       (data[start + 1] << 16) |
+                       (data[start + 2] << 8) |
+                       data[start + 3];
+        start += 4;
+        return val;
+    }
+
+    uint16_t bridge::extractBigEndian2Bytes(const unsigned char *data, size_t &index) {
+        uint16_t val = (data[index] << 8) |
+                       data[index + 1];
+        index += 2;
+        return val;
+    }
+
+
+    std::string bridge::extractString(const unsigned char *data, size_t &start) {
+        size_t end = start;
+        while (data[end] != 0x00) {
+            ++end;
+        }
+        std::string result(reinterpret_cast<const char *>(&data[start]), end - start);
+        start = end + 1; // Adjust to position after the 0x00 byte
+        return result;
+    }
+
 
     void bridge::printStatements() {
-        for (const auto& pair : prepared_statements_lists) {
+        for (const auto &pair: prepared_statements_lists) {
             std::cout << "Statement ID: " << pair.first << " Query: " << pair.second << std::endl;
         }
-    }
-
-    std::string bridge::replacePlaceholders(const std::string &query, const std::vector<std::string> &params) {
-        std::string expansion_result = query;
-
-        for (size_t i = 0; i < params.size(); i++) {
-            std::string placeholder = "$" + std::to_string(i + 1);
-            size_t pos = expansion_result.find(placeholder);
-
-            if (pos != std::string::npos) {
-                expansion_result.replace(pos, placeholder.size(), params[i]);
-            }
-        }
-        return expansion_result;
-    }
-
-    // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
-    std::string_view bridge::processPostgresBindMessage(unsigned char *data) {
-        // statementIdの取得
-        // 6バイト目から0x00までまでがpsのid
-        std::string statementId = reinterpret_cast<const char *>(&data[6]);
-        statementId = statementId.substr(0, statementId.find('\0'));
-
-        if (statementId.empty()) {
-            return "";
-        }
-
-        // psの取得
-        std::string ps = prepared_statements_lists[statementId];
-        size_t offset = 6 + statementId.size();
-
-        // パラメータの総数の取得
-        uint16_t numParams;
-        std::memcpy(&numParams, &data[offset], sizeof(numParams));
-        offset += 2;
-
-        if (numParams == 0) { return"" ;}
-
-        // パラメータの型情報の取得
-        std::vector<uint16_t> paramTypes(numParams);
-        for (uint16_t i = 0; i < numParams; i++) {
-            std::memcpy(&paramTypes[i], &data[offset], sizeof(uint16_t));
-            offset += 2;
-        }
-
-        // パラメータデータの総数(前に取得したので必要ないのでそのままオフセットを増やす)
-        offset += 2;
-
-        // パラメータデータの取得
-        std::vector<std::string> params(numParams);
-        for (uint16_t i = 0; i < numParams; i++) {
-            uint32_t paramSize;
-            std::memcpy(&paramSize, &data[offset], sizeof(paramSize));
-            offset += 4;
-
-            if (paramTypes[i] == 0) {
-                params[i] = std::string(reinterpret_cast<const char *>(&data[offset]), paramSize);
-            } else if (paramTypes[i] == 1) {
-                int value;
-                std::memcpy(&value, &data[offset], sizeof(int));
-                params[i] = std::to_string(value);
-            }
-
-            offset += paramSize;
-        }
-
-        std::cout << "params" << std::endl;
-        for (const auto &val : params) {
-            std::cout << val << ", ";
-        }
-        std::cout << std::endl;
-
-        std::string finalQuery = replacePlaceholders(ps, params);
-        std::cout << "Final query: " << finalQuery << std::endl;
-
-        return finalQuery;
     }
 
     void bridge::handle_upstream_write(const boost::system::error_code &error) {

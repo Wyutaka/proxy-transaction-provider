@@ -66,9 +66,10 @@ namespace tcp_proxy {
 
         void fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl);
         std::string replacePlaceholders(const std::string &query, const std::vector<std::string> &params);
-        std::string_view processPostgresBindMessage(unsigned char *data);
         void parseMessage();
-        uint32_t extractBigEndian4Bytes(const unsigned char* data, size_t start);
+        uint32_t extractBigEndian4Bytes(const unsigned char* data, size_t &start);
+        uint16_t extractBigEndian2Bytes(const unsigned char* data, size_t &start);
+        void parseBindMessage(size_t &index);
         std::string extractString(const unsigned char *data, size_t& start);
         void printStatements();
 
