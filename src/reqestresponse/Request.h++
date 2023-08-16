@@ -24,20 +24,19 @@ namespace transaction {
     private:
         std::vector<Query> _queries;
         Peer _peer;
-        std::string _raw_request;
+//        std::string _raw_request;
 
     public:
-        explicit Request(Peer p, std::vector<Query> queries, std::string_view raw_request)
+        explicit Request(Peer p, std::vector<Query> queries)
                 : _queries(std::move(queries))
-                , _peer(std::move(p))
-                , _raw_request(raw_request) {
-        }
-        Request(Peer p, Query query, std::string_view raw_request)
-                : Request(std::move(p), std::vector<Query>{query}, raw_request) {
+                , _peer(std::move(p)) {}
+
+        Request(Peer p, Query query)
+                : Request(std::move(p), std::vector<Query>{query}) {
         }
 
-        Request(Peer p, std::string_view query_body, std::string_view raw_request)
-                : Request(std::move(p), Query(query_body), raw_request) {}
+        Request(Peer p, std::string_view query_body)
+                : Request(std::move(p), Query(query_body)) {}
 
     public:
         [[nodiscard]] auto begin() { return std::begin(_queries); }
@@ -49,8 +48,6 @@ namespace transaction {
         [[nodiscard]] const std::vector<Query> queries() const { return _queries; }
         [[nodiscard]] const Query &query() const {
             return _queries[0]; }
-        [[nodiscard]] std::string raw_request() const {
-            return _raw_request; }
         [[nodiscard]] const Peer &peer() const { return _peer; }
     };
 }

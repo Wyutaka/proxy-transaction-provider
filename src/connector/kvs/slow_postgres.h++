@@ -115,7 +115,7 @@ namespace transaction {
     public:
         // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req) {
-            const auto &raw_request = req.raw_request();
+//            const auto &raw_request = req.raw_request();
 
             std::vector<std::shared_ptr<CassFuture>> resultFutures;     // CassFuture(実行結果)のsharedptrのベクタを定義
             resultFutures.reserve(req.queries().size());                // クエリサイズ分予約

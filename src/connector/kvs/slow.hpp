@@ -144,17 +144,17 @@ namespace transaction {
     public:
         // ここをプロキシ(bridge)に置き換える
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
-            const auto& raw_request = req.raw_request();
-            std::cout << "raw_request: " << req.query().query() << std::endl;
+//            const auto& raw_request = req.raw_request();
+//            std::cout << "raw_request: " << req.query().query() << std::endl;
 //            std::cout << "transaction" << std::endl;
 //            debug::hexdump(raw_request.data(), raw_request.size());
 
             // サーバーに送信
-            async_write(_bridge->upstream_socket_,
-                        boost::asio::buffer(raw_request.data(), raw_request.size()),
-                        boost::bind(&tcp_proxy::bridge::handle_upstream_write,
-                                    _bridge,
-                                    boost::asio::placeholders::error));
+//            async_write(_bridge->upstream_socket_,
+//                        boost::asio::buffer(raw_request.data(), raw_request.size()),
+//                        boost::bind(&tcp_proxy::bridge::handle_upstream_write,
+//                                    _bridge,
+//                                    boost::asio::placeholders::error));
 
 
 //            resultFutures.reserve(req.queries().size());

@@ -57,7 +57,7 @@ namespace transaction {
             const auto &state = _states[req.peer()];
             const auto &queries = state.getAllQueries();
 
-            auto res = this->next(Request(req.peer(), queries, req.raw_request()));
+            auto res = this->next(Request(req.peer(), queries));
             _states.erase(req.peer());
             return res;
         }

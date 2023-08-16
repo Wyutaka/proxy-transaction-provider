@@ -396,9 +396,9 @@ namespace tcp_proxy {
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
                         transaction::Peer(upstream_host_, upstream_port_),
-                        std::string(reinterpret_cast<const char *>(&downstream_data_[5]), n - 4),
-                        std::string(reinterpret_cast<const char *>(&downstream_data_),
-                                    bytes_transferred)); // n-4 00まで含める｀h
+                        std::string(reinterpret_cast<const char *>(&downstream_data_[5]), message_size_q - 4)
+                ); // n-4 00まで含める｀h
+
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
 
