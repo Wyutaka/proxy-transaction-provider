@@ -66,10 +66,10 @@ namespace tcp_proxy {
 
         void fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl);
         std::string replacePlaceholders(const std::string &query, const std::vector<std::string> &params);
-        void parseMessage();
         uint32_t extractBigEndian4Bytes(const unsigned char* data, size_t &start);
         uint16_t extractBigEndian2Bytes(const unsigned char* data, size_t &start);
-        void parseBindMessage(size_t &index);
+        void parseMessage(size_t &index, const size_t &bytes_transferred);
+        void parseBindMessage(size_t &index, const size_t &bytes_transferred);
         std::string extractString(const unsigned char *data, size_t& start);
         void printStatements();
         void dumpString(const std::string& str);
