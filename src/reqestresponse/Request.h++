@@ -24,6 +24,7 @@ namespace transaction {
     private:
         std::vector<Query> _queries;
         Peer _peer;
+//        std::queue<unsigned char> _cliend_queue;
 //        std::string _raw_request;
 
     public:

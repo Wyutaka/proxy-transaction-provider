@@ -367,7 +367,10 @@ namespace tcp_proxy {
             // ヘッダ情報の読み込み
 
             // クライアントのメッセージ形式を保存するキュー
-            std::queue<char> clientQueue;
+            std::queue<unsigned char> clientQueue;
+
+            //  レスポンス用のバッファ
+            std::vector<unsigned char> response_buffer;
 
             if (downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
                 std::cout << "handle downstream_read" << std::endl;
@@ -475,7 +478,7 @@ namespace tcp_proxy {
             else if (downstream_data_[0] == 0x42) {
                 size_t index = 1;
                 clientQueue.push('P');
-                processBindMessage(index, bytes_transferred, clientQueue);
+                processBindMessage(index, bytes_transferred, clientQueue, response_buffer);
 
                 // とりあえず後ろに流す
                 async_write(upstream_socket_,
@@ -488,7 +491,7 @@ namespace tcp_proxy {
                 // postgresのParseメッセージ(PSの宣言)
             else if (downstream_data_[0] == 0x50) {
                 size_t index = 1;
-                processParseMessage(index, bytes_transferred, clientQueue);
+                processParseMessage(index, bytes_transferred, clientQueue, response_buffer);
 
                 // とりあえず後ろに流す
                 async_write(upstream_socket_,
@@ -520,7 +523,7 @@ namespace tcp_proxy {
 
     // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
     // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
-    void bridge::processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue) {
+    void bridge::processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::vector<unsigned char> &response_buffer) {
         size_t first_index = index;
 
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
@@ -572,10 +575,10 @@ namespace tcp_proxy {
         index = index = first_index + 1 + message_size; // 1 + message_size + 1
         if (downstream_data_[index] == 'D') {
             clientQueue.push('D');
-            processDescribeMessage(index, bytes_transferred, clientQueue);
+            processDescribeMessage(index, bytes_transferred, clientQueue, query, response_buffer);
         } else if (downstream_data_[index] == 'E') {
             clientQueue.push('E');
-            processExecuteMessage(index, bytes_transferred, clientQueue);
+            processExecuteMessage(index, bytes_transferred, clientQueue, query, response_buffer);
         }
 
 
@@ -584,7 +587,7 @@ namespace tcp_proxy {
 //        std::cout << "Bind query: " << query << std::endl;
     }
 
-    void bridge::processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue) {
+    void bridge::processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query, std::vector<unsigned char> &response_buffer) {
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
         // TODO createResponse
@@ -594,23 +597,23 @@ namespace tcp_proxy {
                 transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
         };
 
-        std::string query = extractString(downstream_data_, index); // TODO queryの取得方法の考察(Bindから持ってくるのが良さそう)
-
         // リクエストの生成
-        const transaction::Request &req = transaction::Request(
-                transaction::Peer(upstream_host_, upstream_port_), query); // n-4 00まで含める｀h
+        const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), query); // n-4 00まで含める｀h
 
         // レスポンス生成
         const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
+
 
         // write backend (返却用バッファに追加)
 
         if (downstream_data_[index] == 'P') {
             clientQueue.push('P');
-            processParseMessage(index, bytes_transferred, clientQueue);
+            processParseMessage(index, bytes_transferred, clientQueue, response_buffer);
         } else if (downstream_data_[index] == 'B') {
             clientQueue.push('B');
-            processBindMessage(index, bytes_transferred, clientQueue);
+            processBindMessage(index, bytes_transferred, clientQueue, response_buffer);
+        } else {
+            // TODO write to backend
         }
     }
 
