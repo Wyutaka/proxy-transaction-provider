@@ -373,6 +373,8 @@ namespace tcp_proxy {
             std::vector<unsigned char> response_buffer;
 
             if (downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
+
+                clientQueue.push('Q');
                 std::cout << "handle downstream_read" << std::endl;
                 size_t index = 1;
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
@@ -387,7 +389,7 @@ namespace tcp_proxy {
 
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
-                        transaction::Peer(upstream_host_, upstream_port_), query); // n-4 00まで含める｀h
+                        transaction::Peer(upstream_host_, upstream_port_), query, clientQueue); // n-4 00まで含める｀h
 
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
@@ -598,7 +600,7 @@ namespace tcp_proxy {
         };
 
         // リクエストの生成
-        const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), query); // n-4 00まで含める｀h
+        const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), query, clientQueue); // n-4 00まで含める｀h
 
         // レスポンス生成
         const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);

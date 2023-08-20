@@ -24,20 +24,21 @@ namespace transaction {
     private:
         std::vector<Query> _queries;
         Peer _peer;
-//        std::queue<unsigned char> _cliend_queue;
+        std::queue<unsigned char> _cliend_queue;
 //        std::string _raw_request;
 
     public:
-        explicit Request(Peer p, std::vector<Query> queries)
+        explicit Request(Peer p, std::vector<Query> queries, std::queue<unsigned char> client_queue)
                 : _queries(std::move(queries))
-                , _peer(std::move(p)) {}
+                , _peer(std::move(p))
+                , _cliend_queue(std::move(client_queue)) {}
 
-        Request(Peer p, Query query)
-                : Request(std::move(p), std::vector<Query>{query}) {
+        Request(Peer p, Query query, std::queue<unsigned char> client_queue)
+                : Request(std::move(p), std::vector<Query>{query}, std::move(client_queue)) {
         }
 
-        Request(Peer p, std::string_view query_body)
-                : Request(std::move(p), Query(query_body)) {}
+        Request(Peer p, std::string_view query_body, std::queue<unsigned char> client_queue)
+                : Request(std::move(p), Query(query_body), std::move(client_queue)) {}
 
     public:
         [[nodiscard]] auto begin() { return std::begin(_queries); }
