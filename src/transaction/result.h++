@@ -311,11 +311,11 @@ namespace response {
 
 
     /* TODO クエリに対するリクエストを返す
-                     クライアントに返す文字列の形式: <C/Z
+                     クライアントに返すメッセージ形式: <C/Z
                      Byte1('C') |  Int32       |  String    |  Byte1('Z')  |  Int32(5)   |  Byte1
                      C          |   Int32      |  hoge      |      Z       | 00 00 00 05 |  {'I'|'T'|'E'}  ('I'-> not in transaction/'T'-> in transaction/'E'-> 'Error transaction')
                      43         |  xx xx xx xx | xx xx ...  |      5a      | 00 00 00 05 |  {49/54/45}
-                */
+    */
 
     unsigned char micro_tbl_header[] = {0x54, 0x00, 0x00, 0x00, 0x66, 0x00, 0x04, 0x70, 0x6b, 0x00, 0x00, 0x00, 0x42,
                                         0x00,

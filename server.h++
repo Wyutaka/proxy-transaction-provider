@@ -11,6 +11,7 @@
 #include <cassandra.h>
 #include <libpq-fe.h>
 #include <queue>
+#include <iostream>
 #include "src/ThreadPool/ThreadPool.h++"
 //#include "src/reqestresponse/Request.h++"
 #include <sqlite3.h>
@@ -65,14 +66,83 @@ namespace tcp_proxy {
         void initializeSQLite(PGconn *_conn, const char *text_create_tbl);
 
         void fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl);
+
         std::string replacePlaceholders(const std::string &query, const std::vector<std::string> &params);
-        uint32_t extractBigEndian4Bytes(const unsigned char* data, size_t &start);
-        uint16_t extractBigEndian2Bytes(const unsigned char* data, size_t &start);
-        void parseMessage(size_t &index, const size_t &bytes_transferred);
-        void parseBindMessage(size_t &index, const size_t &bytes_transferred);
-        std::string extractString(const unsigned char *data, size_t& start);
+
+        uint32_t extractBigEndian4Bytes(const unsigned char *data, size_t &start);
+
+        uint16_t extractBigEndian2Bytes(const unsigned char *data, size_t &start);
+
+        void processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue) {
+            size_t first_index = index;
+            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+
+            std::string statement_id = extractString(downstream_data_, index);
+
+            std::string query = extractString(downstream_data_, index);
+
+            std::cout << "parse query: " << query << std::endl;
+
+            if (!statement_id.empty()) {
+                prepared_statements_lists[statement_id] = query;
+            }
+
+            index = first_index + 1 + message_size;
+            if (downstream_data_[index] == 'B') {
+                clientQueue.push('B');
+                processBindMessage(index, bytes_transferred, clientQueue);
+            } else {
+                index = 0;
+            }
+        };
+
+        void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue);
+
+        void processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue) {
+            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+
+            unsigned char ps_or_s = downstream_data_[index];
+            index++;
+
+            std::string ps_or_portal_name = extractString(downstream_data_, index);
+
+            if (downstream_data_[index] == 'E') {
+                clientQueue.push('E');
+                processExecuteMessage(index, bytes_transferred, clientQueue);
+            }
+        }
+
+        void processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue) {
+            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+
+            std::string portal_name = extractString(downstream_data_, index);
+
+            uint16_t return_row_size = extractBigEndian4Bytes(downstream_data_, index);
+
+            if (downstream_data_[index] == 'S') {
+                clientQueue.push('S');
+                processSyncMessage(index, bytes_transferred, clientQueue);
+            } else if (downstream_data_[index] == 'P') {
+                clientQueue.push('P');
+                processParseMessage(index, bytes_transferred, clientQueue);
+            }
+        };
+
+        void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<char> &clientQueue);
+
+        std::string extractString(const unsigned char *data, size_t &start) {
+            size_t end = start;
+            while (data[end] != 0x00) {
+                ++end;
+            }
+            std::string result(reinterpret_cast<const char *>(&data[start]), end - start);
+            start = end + 1; // Adjust to position after the 0x00 byte
+            return result;
+        };
+
         void printStatements();
-        void dumpString(const std::string& str);
+
+        void dumpString(const std::string &str);
 
 
         socket_type downstream_socket_;
