@@ -196,7 +196,7 @@ namespace transaction {
                 }
 //                backend_res.addRow("hoge", 1, 2, 3);
 //                std::string str(backend_res.bytes().begin(), backend_res.bytes().end());
-                debug::hexdump(reinterpret_cast<const char *>(backend_res.bytes().data()), backend_res.bytes().size());
+//                debug::hexdump(reinterpret_cast<const char *>(backend_res.bytes().data()), backend_res.bytes().size());
 
                 // rowからで０で
 //

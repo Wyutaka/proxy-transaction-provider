@@ -6,7 +6,7 @@
 
 
 namespace debug {
-    void hexdump(const char *ptr, unsigned int buflen) {
+    void hexdump(unsigned char *ptr, unsigned int buflen) {
         auto *buf = (unsigned char *) ptr;
         int i, j;
         for (i = 0; i < buflen; i += 16) {

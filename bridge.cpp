@@ -51,7 +51,7 @@ namespace tcp_proxy {
         }
 
 //        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
-        bridge::initializeSQLite(_conn, text_create_tbl_sbtest1);
+        bridge::initializeSQLite();
 //        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
     }
 
@@ -66,7 +66,7 @@ namespace tcp_proxy {
     }
 
     // SQLiteのインメモリデータベースの初期化
-    void bridge::initializeSQLite(PGconn *_conn, const char *text_create_tbl) {
+    void bridge::initializeSQLite() {
         sqlite3 *in_mem_db;
         int ret = sqlite3_open(":memory:", &in_mem_db);
         if (ret != SQLITE_OK) {
@@ -74,8 +74,28 @@ namespace tcp_proxy {
             close_and_reset();
         }
 
-        ret = sqlite3_exec(in_mem_db, text_create_tbl,
+        ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
                            NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_OORDER,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_DISTRICT,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_ITEM,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_WAREHOUSE,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_CUSTOMER,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_ORDER_LINE,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_NEW_ORDER,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_STOCK,
+                           NULL, NULL, NULL);
+        ret = sqlite3_exec(in_mem_db, text_create_HISTORY,
+                           NULL, NULL, NULL);
+        std::cout << "test" << std::endl;
+
         if (ret != SQLITE_OK) {
             printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
         }
@@ -377,28 +397,42 @@ namespace tcp_proxy {
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
                 size_t message_size_q = extractBigEndian4Bytes(downstream_data_, index);
 
+                std::cout << "lock " << std::endl;
+
                 // lock層の生成(postgres用)
                 transaction::lock::Lock<transaction::PostgresConnector> lock{
                         transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
                 };
 
+                std::cout << "query " << std::endl;
                 std::string query = extractString(downstream_data_, index);
 
+                std::cout << "create req " << std::endl;
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
                         transaction::Peer(upstream_host_, upstream_port_), query, clientQueue); // n-4 00まで含める｀h
 
+                std::cout << "create res" << std::endl;
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
 
+                std::cout << "get_res_end" << std::endl;
                 // フロントエンドにresponse_bufferを送信
-                auto response_buffer = res.end()->get_raw_response();
+                std::vector<unsigned char> response_buffer = res.back().get_raw_response();
+
+                std::cout << "get response_buffer" << std::endl;
+
+//                for (unsigned char byte : response_buffer) {
+//                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+//                }
+//                std::cout << std::endl;
+
                 async_write(downstream_socket_,
                             boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
                             boost::bind(&bridge::handle_downstream_write,
                                         shared_from_this(),
                                         boost::asio::placeholders::error));
-                
+
                 // クライアントからの読み込みを開始 (downstream)
                 downstream_socket_.async_read_some(
                         boost::asio::buffer(downstream_data_, max_data_length),
@@ -414,12 +448,12 @@ namespace tcp_proxy {
                 clientQueue.push('P');
                 processBindMessage(index, bytes_transferred, clientQueue);
 
-                // とりあえず後ろに流す
-                async_write(upstream_socket_,
-                            boost::asio::buffer(downstream_data_, bytes_transferred),
-                            boost::bind(&bridge::handle_upstream_write,
-                                        shared_from_this(),
-                                        boost::asio::placeholders::error));
+                // とりあえず後ろに流す TODO 多分いらない
+//                async_write(upstream_socket_,
+//                            boost::asio::buffer(downstream_data_, bytes_transferred),
+//                            boost::bind(&bridge::handle_upstream_write,
+//                                        shared_from_this(),
+//                                        boost::asio::placeholders::error));
 
             }
                 // postgresのParseメッセージ(PSの宣言)
@@ -427,12 +461,12 @@ namespace tcp_proxy {
                 size_t index = 1;
                 processParseMessage(index, bytes_transferred, clientQueue);
 
-                // とりあえず後ろに流す
-                async_write(upstream_socket_,
-                            boost::asio::buffer(downstream_data_, bytes_transferred),
-                            boost::bind(&bridge::handle_upstream_write,
-                                        shared_from_this(),
-                                        boost::asio::placeholders::error));
+                // とりあえず後ろに流す TODO 多分いらない
+//                async_write(upstream_socket_,
+//                            boost::asio::buffer(downstream_data_, bytes_transferred),
+//                            boost::bind(&bridge::handle_upstream_write,
+//                                        shared_from_this(),
+//                                        boost::asio::placeholders::error));
             } else {
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_, bytes_transferred),

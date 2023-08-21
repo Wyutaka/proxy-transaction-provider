@@ -7,6 +7,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <string_view>
 #include <variant>
@@ -57,8 +58,11 @@ namespace transaction {
             _status = status;
         }
 
-        void set_raw_response(std::vector<unsigned char> &bytes) {
+        void set_raw_response(std::vector<unsigned char> bytes) {
+            std::cout << "set_raw_response" << std::endl;
             raw_response = std::move(bytes);
+            std::cout << "std::move" << std::endl;
+
         }
 
         void set_results(std::queue<std::variant<response::Sysbench, response::Sysbench_one, response::Sysbench_sum>> &results) {

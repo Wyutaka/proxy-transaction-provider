@@ -158,13 +158,16 @@ namespace transaction {
             int message_size = 4;
             size_t last_index_D = response_buffer.size();
 
-            // Reserve space for message size
-            std::vector<unsigned char> size_placeholder = {0, 0, 0, 0};
-            response_buffer.insert(response_buffer.end(), size_placeholder.begin(), size_placeholder.end());
-
             message_size += 2;
-            std::vector<unsigned char> num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
-            response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+
+            uint16_t twoBytes = static_cast<uint16_t>(num_field);
+
+            // 上位バイト (high byte) と下位バイト (low byte) を取得
+            unsigned char highByte = (twoBytes >> 8) & 0xFF;
+            unsigned char lowByte = twoBytes & 0xFF;
+
+            response_buffer.push_back(highByte);
+            response_buffer.push_back(lowByte);
 
             for (int i = 0; i < num_field; ++i) {
                 const unsigned char *column_data = sqlite3_column_text(stmt, i);
@@ -174,13 +177,15 @@ namespace transaction {
                 auto column_length_bytes = toBigEndian(column_length);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
-                message_size += column_length + 1;
+                message_size += column_length;
                 response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
-                response_buffer.push_back(0); // null terminator
             }
 
-            auto message_size_bytes = toBigEndian(message_size);
-            std::copy(message_size_bytes.begin(), message_size_bytes.end(), response_buffer.begin() + last_index_D);
+//            auto message_size_bytes = toBigEndian(message_size);
+            auto message_size_bytes = intToBigEndian(message_size);
+
+            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
+                                   message_size_bytes.end());
         }
 
         void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char> &response_buffer) {
@@ -190,46 +195,72 @@ namespace transaction {
             size_t last_index_D = response_buffer.size();
 
             // Reserve space for message size
-            std::vector<unsigned char> size_placeholder = {0, 0, 0, 0};
-            response_buffer.insert(response_buffer.end(), size_placeholder.begin(), size_placeholder.end());
 
             message_size += 2;
-            std::vector<unsigned char> num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
-            response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+
+            uint16_t twoBytes = static_cast<uint16_t>(num_field);
+
+            // 上位バイト (high byte) と下位バイト (low byte) を取得
+            unsigned char highByte = (twoBytes >> 8) & 0xFF;
+            unsigned char lowByte = twoBytes & 0xFF;
+
+            response_buffer.push_back(highByte);
+            response_buffer.push_back(lowByte);
 
             for (int i = 0; i < num_field; ++i) {
                 const unsigned char *column_data = reinterpret_cast<const unsigned char *>(PQgetvalue(pg_res, row, i));
                 int column_length = PQgetlength(pg_res, row, i);
+                std::cout << "column data: " << column_data << std::endl;
+                std::cout << "column length:" << column_length << std::endl;
 
                 message_size += 4;
                 auto column_length_bytes = toBigEndian(column_length);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
-                message_size += column_length + 1;
+                message_size += column_length;
                 response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
-                response_buffer.push_back(0); // null terminator
             }
 
-            auto message_size_bytes = toBigEndian(message_size);
-            std::copy(message_size_bytes.begin(), message_size_bytes.end(), response_buffer.begin() + last_index_D);
+//            auto message_size_bytes = toBigEndian(message_size);
+            auto message_size_bytes = intToBigEndian(message_size);
+
+            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
+                                   message_size_bytes.end());
+        }
+
+        std::vector<unsigned char> intToBigEndian(int32_t value) {
+            std::vector<unsigned char> bytes(4);
+
+            bytes[0] = (value >> 24) & 0xFF;
+            bytes[1] = (value >> 16) & 0xFF;
+            bytes[2] = (value >> 8) & 0xFF;
+            bytes[3] = value & 0xFF;
+
+            return bytes;
+        }
+
+        std::vector<unsigned char> intToBigEndian(int16_t value) {
+            std::vector<unsigned char> bytes(2);
+
+            bytes[0] = (value >> 8) & 0xFF;
+            bytes[1] = value & 0xFF;
+
+            return bytes;
         }
 
         // RowDescriptionメッセージに対するレスポンスRowDescription
         // 識別子: T
-        void
+        int
         create_row_description_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
-                                      Request &req) {
+                                       Request &req) {
+            std::cout << "create_row_desc_message" << std::endl;
             // Tの追加
             response_buffer.push_back('T');
 
-            // メッセージサイズ用のバッファを事前予約
-            unsigned char message_size_offset[] = {0x00, 0x00, 0x00, 0x00};
-            response_buffer.insert(response_buffer.end(), std::begin(message_size_offset),
-                                   std::end(message_size_offset));
-            size_t lastIndex = response_buffer.size() - 1;
+            // メッセージサイズを代入するためのインデックスを保存
+            size_t lastIndex = response_buffer.size();
 
-//                unsigned char message[] = {0x32, 0x00, 0x00, 0x00, 0x04};
-//                response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
+            int num_rows = 0;
 
             int message_size = 4;
             auto query = req.query().query().data();
@@ -241,8 +272,24 @@ namespace transaction {
 
             if (rc == SQLITE_ROW) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
-                auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
-                response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+                std::cout << "from sqlite" << num_field << std::endl;
+//                auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
+//                response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+
+                uint16_t twoBytes = static_cast<uint16_t>(num_field);
+                response_buffer.insert(response_buffer.end(), reinterpret_cast<unsigned char *>(&twoBytes),
+                                       reinterpret_cast<unsigned char *>(&twoBytes + 1));
+
+                // 上位バイト (high byte) と下位バイト (low byte) を取得
+                unsigned char highByte = (twoBytes >> 8) & 0xFF;
+                unsigned char lowByte = twoBytes & 0xFF;
+
+                std::cout << "Value in hex: "
+                          << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(highByte)
+                          << " "
+                          << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(lowByte)
+                          << std::endl;
+
                 message_size += 2;
 
                 for (int i = 0; i < num_field; ++i) {
@@ -259,119 +306,150 @@ namespace transaction {
                     add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
                                                   column_attribute_number,
                                                   field_data_type_oid, data_type_size, type_modifier, format_code);
-
-                    // Tの次にメッセージサイズついか
-                    auto message_size_bytes = toBigEndian(message_size);
-                    response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
-                                           message_size_bytes.end());
-
-                    // Dメッセージを追加
-                    while (rc == SQLITE_ROW) {
-                        addRowDataToBuffer(stmt, num_field, response_buffer);
-                        rc = sqlite3_step(stmt);
-                    }
                 }
-            } else { // No result from SQLite, query from Postgres
-                // ... [Same as before, up to the Postgres processing]
+                // Tの次にメッセージサイズついか
+                auto message_size_bytes = toBigEndian(message_size);
+                response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
+                                       message_size_bytes.end());
 
+                // Dメッセージを追加
+                while (rc == SQLITE_ROW) {
+                    num_rows++;
+                    addRowDataToBuffer(stmt, num_field, response_buffer);
+                    rc = sqlite3_step(stmt);
+                }
+
+            } else {
+                // No result from SQLite, query from Postgres
+                // ... [Same as before, up to the Postgres processing]
                 PGresult *pg_res = PQexec(&conn, query);
                 if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
                     int num_field = PQnfields(pg_res);
-                    auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
-                    response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+                    std::cout << "from postgres" << num_field << std::endl;
+
+//                    auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
+//                    response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+
+                    uint16_t twoBytes = static_cast<uint16_t>(num_field);
+
+                    // 上位バイト (high byte) と下位バイト (low byte) を取得
+                    unsigned char highByte = (twoBytes >> 8) & 0xFF;
+                    unsigned char lowByte = twoBytes & 0xFF;
+
+                    std::cout << "Value in hex: "
+                              << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(highByte)
+                              << " "
+                              << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(lowByte)
+                              << std::endl;
+
+                    response_buffer.push_back(highByte);
+                    response_buffer.push_back(lowByte);
+
                     message_size += 2;
 
+                    // 各フィールドにたいしｔ
                     for (int i = 0; i < num_field; ++i) {
                         std::string field_name = PQfname(pg_res, i);
 
                         int32_t table_oid = PQftable(pg_res, i);
                         int16_t column_attribute_number = PQftablecol(pg_res, i);
                         int32_t field_data_type_oid = PQftype(pg_res, i);
-                        int16_t data_type_size = 0; // Placeholder, might need actual lookup
+                        int16_t data_type_size = -1; // Placeholder, might need actual lookup
                         int32_t type_modifier = 0; // Placeholder, might need actual lookup
                         int16_t format_code = 0; // Placeholder, use appropriate value
 
                         add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
                                                       column_attribute_number,
                                                       field_data_type_oid, data_type_size, type_modifier, format_code);
+                    }
+                    // Tの次にメッセージサイズついか
+                    auto message_size_bytes = intToBigEndian(message_size);
 
-                        // Tの次にメッセージサイズついか
-                        auto message_size_bytes = toBigEndian(message_size);
-                        response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
-                                               message_size_bytes.end());
+                    for (unsigned char byte: message_size_bytes) {
+                        std::cout << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(byte)
+                                  << " ";
+                    }
+                    response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
+                                           message_size_bytes.end());
 
-                        // Dのメッセージを追加
-                        int num_rows = PQntuples(pg_res);
-                        for (int row = 0; row < num_rows; ++row) {
-                            addRowDataToBuffer(pg_res, row, num_field, response_buffer);
-                        }
+                    // Dのメッセージを追加
+                    num_rows = PQntuples(pg_res);
+                    for (int row = 0; row < num_rows; ++row) {
+                        addRowDataToBuffer(pg_res, row, num_field, response_buffer);
                     }
 //                    PQclear(pg_res);
                 }
 //                PQfinish(&conn);
             }
 
-            // TODO Data Rowの実装
-            // Dの追加
-            response_buffer.push_back('D');
-            // メッセージサイズ用のバッファを事前予約
-            unsigned char message_size_offset_D[] = {0x00, 0x00, 0x00, 0x00};
-            response_buffer.insert(response_buffer.end(), std::begin(message_size_offset),
-                                   std::end(message_size_offset));
-            size_t lastIndex_D = response_buffer.size() - 1;
-
-            //
-
-
+            return num_rows;
 //            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
         }
 
-        // Executeメッセージに対するレスポンスCommand Completion
-        // 識別子: C
-        void create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req) {
-            const int message_size_C_base = 4; // 基本のメッセージサイズ
-            response_buffer.push_back('C'); // 'C'を追加
-
-            size_t last_index_C = response_buffer.size(); // 末尾のインデックスを取得
-            response_buffer.resize(response_buffer.size() + 4, 0); // メッセージサイズ用のバッファを予約
-
-            std::string response_msg;
-            auto query_data = req.query().query();
-
-            if (query_data.find("INSERT") != std::string::npos) {
-                response_msg = "INSERT 0 0"; // デフォルト値
-            } else if (query_data.find("DELETE") != std::string::npos) {
-                response_msg = "DELETE 0";
-            } else if (query_data.find("UPDATE") != std::string::npos) {
-                response_msg = "UPDATE 0";
-            } else if (query_data.find("SELECT") != std::string::npos) {
-                response_msg = "SELECT 0";
-            } else if (query_data.find("MOVE") != std::string::npos) {
-                response_msg = "MOVE 0";
-            } else if (query_data.find("FETCH") != std::string::npos) {
-                response_msg = "FETCH 0";
-            } else if (query_data.find("COPY") != std::string::npos) {
-                response_msg = "COPY 0";
-            }
-
-            for (char c: response_msg) {
-                response_buffer.push_back(static_cast<unsigned char>(c));
-            }
-
-            int32_t message_size_C = message_size_C_base + response_msg.length() + 1; // 1は'C'の分
-
-            // 4バイトのビッグエンディアンに変換して追加
-            response_buffer[last_index_C] = (message_size_C >> 24) & 0xFF;
-            response_buffer[last_index_C + 1] = (message_size_C >> 16) & 0xFF;
-            response_buffer[last_index_C + 2] = (message_size_C >> 8) & 0xFF;
-            response_buffer[last_index_C + 3] = message_size_C & 0xFF;
+        // 小文字に変換する関数
+        std::string to_lowercase(const std::string& s) {
+            std::string result = s;
+            std::transform(result.begin(), result.end(), result.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+            return result;
         }
 
 
-        template<typename T>
-        void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, const T &data) {
-            auto bytes = toBigEndian(data);
+        void create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req, int num_rows) {
+            // 'C'をresponse_bufferの末尾に追加
+            response_buffer.push_back('C');
+
+            // message_size_C = 4
+            int message_size_C = 4;
+
+            // last_index_Cにresponse_bufferの末尾のインデックスを取得
+            size_t last_index_C = response_buffer.size();
+
+            // command_tagを設定
+            std::string command_tag;
+            std::string query_str_lower = to_lowercase(req.query().query().data());  // Simplified for example
+
+            if (query_str_lower.find("insert") != std::string::npos) {
+                command_tag = "INSERT 0 " + std::to_string(num_rows);
+            } else if (query_str_lower.find("delete") != std::string::npos) {
+                command_tag = "DELETE " + std::to_string(num_rows);
+            } else if (query_str_lower.find("update") != std::string::npos) {
+                command_tag = "UPDATE " + std::to_string(num_rows);
+            } else if (query_str_lower.find("select") != std::string::npos) {
+                command_tag = "SELECT " + std::to_string(num_rows);
+            } else if (query_str_lower.find("move") != std::string::npos) {
+                command_tag = "MOVE " + std::to_string(num_rows);
+            } else if (query_str_lower.find("fetch") != std::string::npos) {
+                command_tag = "FETCH " + std::to_string(num_rows);
+            } else if (query_str_lower.find("copy") != std::string::npos) {
+                command_tag = "COPY " + std::to_string(num_rows);
+            }
+
+            // message_size_C += 挿入した文字列数
+            message_size_C += command_tag.size() + 1;
+            std::cout << "C message size:" << std::to_string(message_size_C) << std::endl;
+
+            auto message_size_bytes = intToBigEndian(message_size_C);
+
+            response_buffer.insert(response_buffer.begin() + last_index_C, message_size_bytes.begin(),
+                                   message_size_bytes.end());
+
+            // command_tagをresponse_bufferの末尾に追加
+            response_buffer.insert(response_buffer.end(), command_tag.begin(), command_tag.end());
+
+            response_buffer.push_back(0); // null terminator
+            std::cout << "complettion: " << command_tag << std::endl;
+        }
+
+        void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, int32_t data) {
+            auto bytes = intToBigEndian(data);
+            response_buffer.insert(response_buffer.end(), bytes.begin(), bytes.end());
+            message_size += bytes.size();
+        }
+
+        void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, int16_t data) {
+            auto bytes = intToBigEndian(data);
             response_buffer.insert(response_buffer.end(), bytes.begin(), bytes.end());
             message_size += bytes.size();
         }
@@ -387,7 +465,8 @@ namespace transaction {
                                            int16_t format_code) {
 
             response_buffer.insert(response_buffer.end(), field_name.begin(), field_name.end());
-            message_size += field_name.size();
+            response_buffer.push_back(0); // null terminator
+            message_size += field_name.size() + 1;
 
             insertToResponseBuffer(response_buffer, message_size, table_oid);
             insertToResponseBuffer(response_buffer, message_size, column_attribute_number);
@@ -407,7 +486,7 @@ namespace transaction {
         // Syncメッセージに対するレスポンスReadyForQuery
         // 識別子: Z
         void create_ready_for_query_message(std::vector<unsigned char> &response_buffer) {
-            unsigned char message[] = {0x5a, 0x00, 0x00, 0x00, 0x04};
+            unsigned char message[] = {0x5a, 0x00, 0x00, 0x00, 0x05, 0x73};
             response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
         }
 
@@ -505,20 +584,20 @@ namespace transaction {
         }
 
         // query = req.query().query().data()
-    // client_queueの先頭をひとつづつ読み込む
-    // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
-    // client_messageがBの時,create_bind_complete_message(std::vector<unsigned char> &response_buffer)を実行
-    // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
-    // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
-    // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
-        void
-        process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
-                               sqlite3 *in_mem_db, PGconn &conn, Request req) {
+        // client_queueの先頭をひとつづつ読み込む
+        // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
+        // client_messageがBの時,create_bind_complete_message(std::vector<unsigned char> &response_buffer)を実行
+        // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
+        // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
+        // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
+        void process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
+                                    sqlite3 *in_mem_db, PGconn &conn, Request req) {
             while (!client_queue.empty()) {  // キューが空になるまでループ
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
-                std::vector<unsigned char> response_buffer;
+                // commmand_completeメッセージのための行数
+                int num_rows = 0;
 
                 switch (client_message) {
                     case 'P':
@@ -531,15 +610,21 @@ namespace transaction {
                         if (req.query().query().empty()) {
                             create_no_data_message(response_buffer);
                         } else {
-                            create_row_description_message(in_mem_db, response_buffer, conn, req);
+                            std::cout << "tes D Q" << std::endl;
+                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
                         }
                         break;
                     case 'E':
-                        create_command_complete_message(response_buffer, req);
+                        create_command_complete_message(response_buffer, req, num_rows);
                         break;
                     case 'S':
                         create_ready_for_query_message(response_buffer);
                         break;
+                    case 'Q':
+                        create_row_description_message(in_mem_db, response_buffer, conn, req);
+                        // TODO これ、Qがれんぞくしたらだめ？
+                        client_queue.push('E');
+                        client_queue.push('S');
                     default:
                         // 何もしないか、エラーメッセージを生成するなどの処理
                         break;
@@ -549,10 +634,32 @@ namespace transaction {
             }
         }
 
+        void printQueue(std::queue<unsigned char> &q) {
+            std::queue<unsigned char> tempQueue;
+
+            std::cout << "Queue content: ";
+
+            while (!q.empty()) {
+                unsigned char val = q.front();
+                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
+
+                q.pop();
+                tempQueue.push(val);
+            }
+
+            // Restore the original queue
+            while (!tempQueue.empty()) {
+                q.push(tempQueue.front());
+                tempQueue.pop();
+            }
+
+            std::cout << std::endl;
+        }
+
     public:
-    // responseを生成する
-    // response.set_raw_responseでresponse_bufferを代入する
-    // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
+        // responseを生成する
+        // response.set_raw_responseでresponse_bufferを代入する
+        // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
 
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
             auto client_queue = req.queue();
@@ -561,6 +668,7 @@ namespace transaction {
 //                std::cout << req.query().query() << std::endl;
             std::vector<unsigned char> response_buffer;
 
+            std::cout << "process_client_message" << std::endl;
             process_client_message(response_buffer, req.queue(), in_mem_db, *_conn, req);
 
 //            if (req.query().isSelect()) {
@@ -579,8 +687,21 @@ namespace transaction {
 //
 //            return Response({CoResponse(Status::Ok)});
 
+            std::cout << "initialize response" << std::endl;
             auto res = Response({CoResponse(Status::Ok)});
-            res.end()->set_raw_response(response_buffer);
+
+            std::cout << "response_buf_size:" << response_buffer.size() << std::endl;
+
+            for (unsigned char byte: response_buffer) {
+                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+            }
+
+            res.back().set_raw_response(response_buffer);
+
+            std::cout << "return response" << std::endl;
+
+            return res;
+
         }
     };
 } // namespace transaction
