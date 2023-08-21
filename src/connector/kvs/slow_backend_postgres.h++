@@ -394,8 +394,19 @@ namespace transaction {
             insertToResponseBuffer(response_buffer, message_size, format_code);
         }
 
-        void create_data_row_message() {}
+        // Excecuteメッセージに対するレスポンスEmptyQueryResponse
+        // 識別子: I
+        void create_empty_query_response_message(std::vector<unsigned char> &response_buffer) {
+            unsigned char message[] = {0x49, 0x00, 0x00, 0x00, 0x04};
+            response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
+        }
 
+        // Syncメッセージに対するレスポンスReadyForQuery
+        // 識別子: Z
+        void create_ready_for_query_message(std::vector<unsigned char> &response_buffer) {
+            unsigned char message[] = {0x5a, 0x00, 0x00, 0x00, 0x04};
+            response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
+        }
 
 //        const
 
