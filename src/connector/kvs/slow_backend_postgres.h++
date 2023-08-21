@@ -323,6 +323,47 @@ namespace transaction {
 //            sqlite3_close(sqlite_db);
         }
 
+        // Executeメッセージに対するレスポンスCommand Completion
+        // 識別子: C
+        void create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req) {
+            const int message_size_C_base = 4; // 基本のメッセージサイズ
+            response_buffer.push_back('C'); // 'C'を追加
+
+            size_t last_index_C = response_buffer.size(); // 末尾のインデックスを取得
+            response_buffer.resize(response_buffer.size() + 4, 0); // メッセージサイズ用のバッファを予約
+
+            std::string response_msg;
+            auto query_data = req.query().query();
+
+            if (query_data.find("INSERT") != std::string::npos) {
+                response_msg = "INSERT 0 0"; // デフォルト値
+            } else if (query_data.find("DELETE") != std::string::npos) {
+                response_msg = "DELETE 0";
+            } else if (query_data.find("UPDATE") != std::string::npos) {
+                response_msg = "UPDATE 0";
+            } else if (query_data.find("SELECT") != std::string::npos) {
+                response_msg = "SELECT 0";
+            } else if (query_data.find("MOVE") != std::string::npos) {
+                response_msg = "MOVE 0";
+            } else if (query_data.find("FETCH") != std::string::npos) {
+                response_msg = "FETCH 0";
+            } else if (query_data.find("COPY") != std::string::npos) {
+                response_msg = "COPY 0";
+            }
+
+            for (char c : response_msg) {
+                response_buffer.push_back(static_cast<unsigned char>(c));
+            }
+
+            int32_t message_size_C = message_size_C_base + response_msg.length() + 1; // 1は'C'の分
+
+            // 4バイトのビッグエンディアンに変換して追加
+            response_buffer[last_index_C] = (message_size_C >> 24) & 0xFF;
+            response_buffer[last_index_C + 1] = (message_size_C >> 16) & 0xFF;
+            response_buffer[last_index_C + 2] = (message_size_C >> 8) & 0xFF;
+            response_buffer[last_index_C + 3] = message_size_C & 0xFF;
+        }
+
 
 
         template<typename T>
