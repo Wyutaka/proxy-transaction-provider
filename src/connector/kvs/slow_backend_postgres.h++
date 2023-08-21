@@ -164,7 +164,6 @@ namespace transaction {
             unsigned char message_size_offset[] = {0x00, 0x00, 0x00, 0x00};
             response_buffer.insert(response_buffer.end(), std::begin(message_size_offset),
                                    std::end(message_size_offset));
-            size_t lastIndex = response_buffer.size() - 1;
 
 //                unsigned char message[] = {0x32, 0x00, 0x00, 0x00, 0x04};
 //                response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
@@ -177,9 +176,30 @@ namespace transaction {
             int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
             rc = sqlite3_step(stmt);
 
-            if (rc != SQLITE_ROW) { // No result from SQLite, query from Postgres
-                PGresult *pg_res = PQexec(&conn, query);
+            if (rc == SQLITE_ROW) { // Data exists in SQLite
+                int num_field = sqlite3_column_count(stmt);
+                auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
+                response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+                message_size += 2;
 
+                for (int i = 0; i < num_field; ++i) {
+                    const char* field_name = sqlite3_column_name(stmt, i);
+
+                    // Placeholder values, replace as needed
+                    int32_t table_oid = 0;
+                    int16_t column_attribute_number = 0;
+                    int32_t field_data_type_oid = 0;
+                    int16_t data_type_size = 0;
+                    int32_t type_modifier = 0;
+                    int16_t format_code = 0;
+
+                    add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid, column_attribute_number,
+                                          field_data_type_oid, data_type_size, type_modifier, format_code);
+                }
+            } else { // No result from SQLite, query from Postgres
+                // ... [Same as before, up to the Postgres processing]
+
+                PGresult *pg_res = PQexec(&conn, query);
                 if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
                     int num_field = PQnfields(pg_res);
                     auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
@@ -188,55 +208,62 @@ namespace transaction {
 
                     for (int i = 0; i < num_field; ++i) {
                         std::string field_name = PQfname(pg_res, i);
-                        response_buffer.insert(response_buffer.end(), field_name.begin(), field_name.end());
-                        message_size += field_name.size();
 
                         int32_t table_oid = PQftable(pg_res, i);
-                        auto table_oid_bytes = toBigEndian(table_oid);
-                        response_buffer.insert(response_buffer.end(), table_oid_bytes.begin(), table_oid_bytes.end());
-                        message_size += 4;
-
                         int16_t column_attribute_number = PQftablecol(pg_res, i);
-                        auto column_attr_bytes = toBigEndian(column_attribute_number);
-                        response_buffer.insert(response_buffer.end(), column_attr_bytes.begin(), column_attr_bytes.end());
-                        message_size += 2;
-
                         int32_t field_data_type_oid = PQftype(pg_res, i);
-                        auto data_type_oid_bytes = toBigEndian(field_data_type_oid);
-                        response_buffer.insert(response_buffer.end(), data_type_oid_bytes.begin(), data_type_oid_bytes.end());
-                        message_size += 4;
-
-                        // todo データ型大きさ,なんか別の値があるかもしれないけど、とりあえずかへんちょうの-1を指定
-                        int16_t data_type_size = -1; // Placeholder, might need actual lookup
-                        auto data_type_size_bytes = toBigEndian(data_type_size);
-                        response_buffer.insert(response_buffer.end(), data_type_size_bytes.begin(), data_type_size_bytes.end());
-                        message_size += 2;
-
+                        int16_t data_type_size = 0; // Placeholder, might need actual lookup
                         int32_t type_modifier = 0; // Placeholder, might need actual lookup
-                        auto type_modifier_bytes = toBigEndian(type_modifier);
-                        response_buffer.insert(response_buffer.end(), type_modifier_bytes.begin(), type_modifier_bytes.end());
-                        message_size += 4;
-
                         int16_t format_code = 0; // Placeholder, use appropriate value
-                        auto format_code_bytes = toBigEndian(format_code);
-                        response_buffer.insert(response_buffer.end(), format_code_bytes.begin(), format_code_bytes.end());
-                        message_size += 2;
+
+                        add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid, column_attribute_number,
+                                              field_data_type_oid, data_type_size, type_modifier, format_code);
                     }
-                    PQclear(pg_res);
+//                    PQclear(pg_res);
                 }
-                PQfinish(&conn);
+//                PQfinish(&conn);
             }
 
             // Insert message size at the 2nd position
             auto message_size_bytes = toBigEndian(message_size);
             response_buffer.insert(response_buffer.begin() + 1, message_size_bytes.begin(), message_size_bytes.end());
 
-            sqlite3_finalize(stmt);
+//            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
         }
 
+        template<typename T>
+        void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, const T &data) {
+            auto bytes = toBigEndian(data);
+            response_buffer.insert(response_buffer.end(), bytes.begin(), bytes.end());
+            message_size += bytes.size();
+        }
 
-        const
+// 同様の処理を繰り返す関数
+        void add_row_description_to_buffer(std::vector<unsigned char> &response_buffer, int &message_size,
+                                           const std::string &field_name,
+                                           int32_t table_oid,
+                                           int16_t column_attribute_number,
+                                           int32_t field_data_type_oid,
+                                           int16_t data_type_size,
+                                           int32_t type_modifier,
+                                           int16_t format_code) {
+
+            response_buffer.insert(response_buffer.end(), field_name.begin(), field_name.end());
+            message_size += field_name.size();
+
+            insertToResponseBuffer(response_buffer, message_size, table_oid);
+            insertToResponseBuffer(response_buffer, message_size, column_attribute_number);
+            insertToResponseBuffer(response_buffer, message_size, field_data_type_oid);
+            insertToResponseBuffer(response_buffer, message_size, data_type_size);
+            insertToResponseBuffer(response_buffer, message_size, type_modifier);
+            insertToResponseBuffer(response_buffer, message_size, format_code);
+        }
+
+        void create_data_row_message() {}
+
+
+//        const
 
         int COLUMN_COUNT_ALL = 4;
         const char SELECT_ALL_CHAR = '*';
