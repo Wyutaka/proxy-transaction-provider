@@ -73,7 +73,7 @@ namespace tcp_proxy {
 
         uint16_t extractBigEndian2Bytes(const unsigned char *data, size_t &start);
 
-        void processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::vector<unsigned char> &response_buffer) {
+        void processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue) {
             size_t first_index = index;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
@@ -90,15 +90,15 @@ namespace tcp_proxy {
             index = first_index + 1 + message_size;
             if (downstream_data_[index] == 'B') {
                 clientQueue.push('B');
-                processBindMessage(index, bytes_transferred, clientQueue, response_buffer);
+                processBindMessage(index, bytes_transferred, clientQueue);
             } else {
                 index = 0;
             }
         };
 
-        void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::vector<unsigned char> &response_buffer);
+        void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue);
 
-        void processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query, std::vector<unsigned char> &response_buffer) {
+        void processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query) {
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             unsigned char ps_or_s = downstream_data_[index];
@@ -108,11 +108,11 @@ namespace tcp_proxy {
 
             if (downstream_data_[index] == 'E') {
                 clientQueue.push('E');
-                processExecuteMessage(index, bytes_transferred, clientQueue, query, response_buffer);
+                processExecuteMessage(index, bytes_transferred, clientQueue, query);
             }
         }
 
-        void processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query, std::vector<unsigned char> &response_buffer) {
+        void processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query) {
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             std::string portal_name = extractString(downstream_data_, index);
@@ -121,14 +121,14 @@ namespace tcp_proxy {
 
             if (downstream_data_[index] == 'S') {
                 clientQueue.push('S');
-                processSyncMessage(index, bytes_transferred, clientQueue, query, response_buffer);
+                processSyncMessage(index, bytes_transferred, clientQueue, query);
             } else if (downstream_data_[index] == 'P') {
                 clientQueue.push('P');
-                processParseMessage(index, bytes_transferred, clientQueue, response_buffer);
+                processParseMessage(index, bytes_transferred, clientQueue);
             }
         };
 
-        void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query, std::vector<unsigned char> &response_buffer);
+        void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query);
 
         std::string extractString(const unsigned char *data, size_t &start) {
             size_t end = start;

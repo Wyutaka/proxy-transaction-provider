@@ -369,9 +369,6 @@ namespace tcp_proxy {
             // クライアントのメッセージ形式を保存するキュー
             std::queue<unsigned char> clientQueue;
 
-            //  レスポンス用のバッファ
-            std::vector<unsigned char> response_buffer;
-
             if (downstream_data_[0] == 0x51) { // 1バイト目が'Q'のとき
 
                 clientQueue.push('Q');
@@ -394,79 +391,14 @@ namespace tcp_proxy {
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
 
-                unsigned char res_postgres[
-                        16 + 6] = {0x43, 0x00, 0x00, 0x00, 0x0f, 0x49, 0x4e, 0x53, 0x45, 0x52, 0x54, 0x20, 0x30, 0x20,
-                                   0x31, 0x00, // C
-                                   0x5a, 0x00, 0x00, 0x00, 0x05, 0x54 // Z
-                        };
-
-                auto transaction_status = res.front().status();
-                if (transaction_status == transaction::Status::Commit) {
-                    queue_sender.submit([&]() { send_queue_backend(query_queue); });
-                }
-
-                // 内部DBに結果がない場合は後ろにそのまま流しつつ、内部DBに結果を保存する(内部DBに結果を保存する処理はslow_postgres内で行う)
-                if (transaction_status == transaction::Status::Select_Pending) {
-//                    std::thread in_mem_updater([&]{
-//                        download_result(*_conn, req, in_mem_db);
-//                    });
-                    async_write(upstream_socket_,
-                                boost::asio::buffer(downstream_data_, bytes_transferred),
-                                boost::bind(&bridge::handle_upstream_write,
-                                            shared_from_this(),
-                                            boost::asio::placeholders::error));
-//                    in_mem_updater.join();
-                } else if (transaction_status == transaction::Status::Result) {
-                    std::basic_string<unsigned char> result;
-
-                    auto result_queue = res.front().get_results();
-                    auto res_type_char = req.query().query()[7];
-                    // ヘッダ情報のバイトパック
-                    if (res_type_char == 'c' || res_type_char == 'D') {
-                        result.append(response::sysbench_tbl_c_header);
-                    } else if (res_type_char == 's' || res_type_char == 'S') {
-                        result.append(response::sysbench_tbl_sum_header);
-                    } else {
-                        result.append(response::sysbench_tbl_header);
-                    }
-                    while (!result_queue.empty()) {
-                        auto res_type = result_queue.front().index(); // 0 -> sysbench, 1 -> sysbench_one, 2 -> sysbench_sum
-                        std::vector<unsigned char> D;
-                        if (res_type == 0) { // sysbench
-                            D = std::get<0>(result_queue.front()).bytes();
-                        } else if (res_type == 1) { // sysbench_one
-                            D = std::get<1>(result_queue.front()).bytes();
-                        } else if (res_type == 2) { // sysbench_sum
-                            D = std::get<2>(result_queue.front()).bytes();
-                        }
-                        result.append(std::basic_string(D.begin(), D.end()));
-                        result_queue.pop();
-                        if (result.size() > 60000) // バッファあふれの回避
-                            break;
-                    }
-                    // フッタ情報の追加
-
-                    result.append(response::sysbench_slct_cmd);
-                    result.append(response::sysbench_status);
-//                    debug::hexdump(reinterpret_cast<const char *>(result.data()), result.size()); // 下流バッファバッファ16進表示
-
-                    async_write(downstream_socket_,
-                                boost::asio::buffer(result.data(), result.size()), // result_okの文字列長
-                                boost::bind(&bridge::handle_downstream_write,
-                                            shared_from_this(),
-                                            boost::asio::placeholders::error));
-
-                } else {
-                    // TODO 失敗、成功をレスポンスから判定して返す
-                    // レスポンス帰る前に送ってる？？
-                    // クライアントにレスポンスを返す
-                    async_write(downstream_socket_,
-                                boost::asio::buffer(res_postgres, 154), // result_okの文字列長
-                                boost::bind(&bridge::handle_downstream_write,
-                                            shared_from_this(),
-                                            boost::asio::placeholders::error));
-                }
-
+                // フロントエンドにresponse_bufferを送信
+                auto response_buffer = res.end()->get_raw_response();
+                async_write(downstream_socket_,
+                            boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
+                            boost::bind(&bridge::handle_downstream_write,
+                                        shared_from_this(),
+                                        boost::asio::placeholders::error));
+                
                 // クライアントからの読み込みを開始 (downstream)
                 downstream_socket_.async_read_some(
                         boost::asio::buffer(downstream_data_, max_data_length),
@@ -480,7 +412,7 @@ namespace tcp_proxy {
             else if (downstream_data_[0] == 0x42) {
                 size_t index = 1;
                 clientQueue.push('P');
-                processBindMessage(index, bytes_transferred, clientQueue, response_buffer);
+                processBindMessage(index, bytes_transferred, clientQueue);
 
                 // とりあえず後ろに流す
                 async_write(upstream_socket_,
@@ -493,7 +425,7 @@ namespace tcp_proxy {
                 // postgresのParseメッセージ(PSの宣言)
             else if (downstream_data_[0] == 0x50) {
                 size_t index = 1;
-                processParseMessage(index, bytes_transferred, clientQueue, response_buffer);
+                processParseMessage(index, bytes_transferred, clientQueue);
 
                 // とりあえず後ろに流す
                 async_write(upstream_socket_,
@@ -525,7 +457,7 @@ namespace tcp_proxy {
 
     // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
     // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
-    void bridge::processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::vector<unsigned char> &response_buffer) {
+    void bridge::processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue) {
         size_t first_index = index;
 
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
@@ -577,10 +509,10 @@ namespace tcp_proxy {
         index = index = first_index + 1 + message_size; // 1 + message_size + 1
         if (downstream_data_[index] == 'D') {
             clientQueue.push('D');
-            processDescribeMessage(index, bytes_transferred, clientQueue, query, response_buffer);
+            processDescribeMessage(index, bytes_transferred, clientQueue, query);
         } else if (downstream_data_[index] == 'E') {
             clientQueue.push('E');
-            processExecuteMessage(index, bytes_transferred, clientQueue, query, response_buffer);
+            processExecuteMessage(index, bytes_transferred, clientQueue, query);
         }
 
 
@@ -589,10 +521,8 @@ namespace tcp_proxy {
 //        std::cout << "Bind query: " << query << std::endl;
     }
 
-    void bridge::processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query, std::vector<unsigned char> &response_buffer) {
+    void bridge::processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query) {
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
-
-        // TODO createResponse
 
         // lock層の生成(postgres用)
         transaction::lock::Lock<transaction::PostgresConnector> lock{
@@ -610,12 +540,27 @@ namespace tcp_proxy {
 
         if (downstream_data_[index] == 'P') {
             clientQueue.push('P');
-            processParseMessage(index, bytes_transferred, clientQueue, response_buffer);
+            processParseMessage(index, bytes_transferred, clientQueue);
         } else if (downstream_data_[index] == 'B') {
             clientQueue.push('B');
-            processBindMessage(index, bytes_transferred, clientQueue, response_buffer);
+            processBindMessage(index, bytes_transferred, clientQueue);
         } else {
             // TODO write to backend
+            // フロントエンドにresponse_bufferを送信
+            auto response_buffer = res.end()->get_raw_response();
+            async_write(downstream_socket_,
+                        boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
+                        boost::bind(&bridge::handle_downstream_write,
+                                    shared_from_this(),
+                                    boost::asio::placeholders::error));
+
+            // フロントエンドからの読み込みを開始
+            downstream_socket_.async_read_some(
+                    boost::asio::buffer(downstream_data_, max_data_length),
+                    boost::bind(&bridge::handle_downstream_read,
+                                shared_from_this(),
+                                boost::asio::placeholders::error,
+                                boost::asio::placeholders::bytes_transferred));
         }
     }
 

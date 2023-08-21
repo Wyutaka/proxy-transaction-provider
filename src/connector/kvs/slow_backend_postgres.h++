@@ -550,6 +550,9 @@ namespace transaction {
         }
 
     public:
+    // responseを生成する
+    // response.set_raw_responseでresponse_bufferを代入する
+    // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
 
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
             auto client_queue = req.queue();
@@ -559,20 +562,25 @@ namespace transaction {
             std::vector<unsigned char> response_buffer;
 
             process_client_message(response_buffer, req.queue(), in_mem_db, *_conn, req);
-            if (req.query().isSelect()) {
-                std::queue<response::sysbench_result_type> results;
 
-                bool isCached = get_from_local(in_mem_db, req, results);
-                if (!isCached) {
-                    return Response({CoResponse(Status::Select_Pending)});
-                }
+//            if (req.query().isSelect()) {
+//
+//                std::queue<response::sysbench_result_type> results;
+//
+//                bool isCached = get_from_local(in_mem_db, req, results);
+//                if (!isCached) {
+//                    return Response({CoResponse(Status::Select_Pending)});
+//                }
+//
+//                auto res = Response({CoResponse(Status::Result)});
+//                res.begin()->set_results(results);
+//                return res;
+//            }
+//
+//            return Response({CoResponse(Status::Ok)});
 
-                auto res = Response({CoResponse(Status::Result)});
-                res.begin()->set_results(results);
-                return res;
-            }
-
-            return Response({CoResponse(Status::Ok)});;
+            auto res = Response({CoResponse(Status::Ok)});
+            res.end()->set_raw_response(response_buffer);
         }
     };
 } // namespace transaction
