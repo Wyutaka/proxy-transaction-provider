@@ -152,7 +152,7 @@ namespace transaction {
             return bytes;
         }
 
-        void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char>& response_buffer) {
+        void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char> &response_buffer) {
             response_buffer.push_back('D');
 
             int message_size = 4;
@@ -167,7 +167,7 @@ namespace transaction {
             response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
 
             for (int i = 0; i < num_field; ++i) {
-                const unsigned char* column_data = sqlite3_column_text(stmt, i);
+                const unsigned char *column_data = sqlite3_column_text(stmt, i);
                 int column_length = sqlite3_column_bytes(stmt, i);
 
                 message_size += 4;
@@ -183,7 +183,7 @@ namespace transaction {
             std::copy(message_size_bytes.begin(), message_size_bytes.end(), response_buffer.begin() + last_index_D);
         }
 
-        void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char>& response_buffer) {
+        void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char> &response_buffer) {
             response_buffer.push_back('D');
 
             int message_size = 4;
@@ -198,7 +198,7 @@ namespace transaction {
             response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
 
             for (int i = 0; i < num_field; ++i) {
-                const unsigned char* column_data = reinterpret_cast<const unsigned char*>(PQgetvalue(pg_res, row, i));
+                const unsigned char *column_data = reinterpret_cast<const unsigned char *>(PQgetvalue(pg_res, row, i));
                 int column_length = PQgetlength(pg_res, row, i);
 
                 message_size += 4;
@@ -217,7 +217,7 @@ namespace transaction {
         // RowDescriptionメッセージに対するレスポンスRowDescription
         // 識別子: T
         void
-        create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
+        create_row_description_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
                                       Request &req) {
             // Tの追加
             response_buffer.push_back('T');
@@ -246,7 +246,7 @@ namespace transaction {
                 message_size += 2;
 
                 for (int i = 0; i < num_field; ++i) {
-                    const char* field_name = sqlite3_column_name(stmt, i);
+                    const char *field_name = sqlite3_column_name(stmt, i);
 
                     // Placeholder values, replace as needed
                     int32_t table_oid = 0;
@@ -256,12 +256,14 @@ namespace transaction {
                     int32_t type_modifier = 0;
                     int16_t format_code = 0;
 
-                    add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid, column_attribute_number,
-                                          field_data_type_oid, data_type_size, type_modifier, format_code);
+                    add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
+                                                  column_attribute_number,
+                                                  field_data_type_oid, data_type_size, type_modifier, format_code);
 
                     // Tの次にメッセージサイズついか
                     auto message_size_bytes = toBigEndian(message_size);
-                    response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(), message_size_bytes.end());
+                    response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
+                                           message_size_bytes.end());
 
                     // Dメッセージを追加
                     while (rc == SQLITE_ROW) {
@@ -289,12 +291,14 @@ namespace transaction {
                         int32_t type_modifier = 0; // Placeholder, might need actual lookup
                         int16_t format_code = 0; // Placeholder, use appropriate value
 
-                        add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid, column_attribute_number,
-                                              field_data_type_oid, data_type_size, type_modifier, format_code);
+                        add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
+                                                      column_attribute_number,
+                                                      field_data_type_oid, data_type_size, type_modifier, format_code);
 
                         // Tの次にメッセージサイズついか
                         auto message_size_bytes = toBigEndian(message_size);
-                        response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(), message_size_bytes.end());
+                        response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
+                                               message_size_bytes.end());
 
                         // Dのメッセージを追加
                         int num_rows = PQntuples(pg_res);
@@ -351,7 +355,7 @@ namespace transaction {
                 response_msg = "COPY 0";
             }
 
-            for (char c : response_msg) {
+            for (char c: response_msg) {
                 response_buffer.push_back(static_cast<unsigned char>(c));
             }
 
@@ -363,7 +367,6 @@ namespace transaction {
             response_buffer[last_index_C + 2] = (message_size_C >> 8) & 0xFF;
             response_buffer[last_index_C + 3] = message_size_C & 0xFF;
         }
-
 
 
         template<typename T>
@@ -501,11 +504,61 @@ namespace transaction {
             }, result_record_variant);
         }
 
+        // query = req.query().query().data()
+    // client_queueの先頭をひとつづつ読み込む
+    // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
+    // client_messageがBの時,create_bind_complete_message(std::vector<unsigned char> &response_buffer)を実行
+    // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
+    // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
+    // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
+        void
+        process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
+                               sqlite3 *in_mem_db, PGconn &conn, Request req) {
+            while (!client_queue.empty()) {  // キューが空になるまでループ
+                unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
+                client_queue.pop(); // 読み取ったメッセージをキューから削除
+
+                std::vector<unsigned char> response_buffer;
+
+                switch (client_message) {
+                    case 'P':
+                        create_parse_complete_message(response_buffer);
+                        break;
+                    case 'B':
+                        create_bind_complete_message(response_buffer);
+                        break;
+                    case 'D':
+                        if (req.query().query().empty()) {
+                            create_no_data_message(response_buffer);
+                        } else {
+                            create_row_description_message(in_mem_db, response_buffer, conn, req);
+                        }
+                        break;
+                    case 'E':
+                        create_command_complete_message(response_buffer, req);
+                        break;
+                    case 'S':
+                        create_ready_for_query_message(response_buffer);
+                        break;
+                    default:
+                        // 何もしないか、エラーメッセージを生成するなどの処理
+                        break;
+                }
+
+                // response_bufferを何らかの方法で送信するか、他の処理を行う
+            }
+        }
+
     public:
 
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
+            auto client_queue = req.queue();
+
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
+            std::vector<unsigned char> response_buffer;
+
+            process_client_message(response_buffer, req.queue(), in_mem_db, *_conn, req);
             if (req.query().isSelect()) {
                 std::queue<response::sysbench_result_type> results;
 

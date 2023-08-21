@@ -51,6 +51,7 @@ namespace transaction {
         [[nodiscard]] const Query &query() const {
             return _queries[0]; }
         [[nodiscard]] const Peer &peer() const { return _peer; }
+        [[nodiscard]] const std::queue<unsigned char> queue() const { return _cliend_queue; }
     };
 }
 
