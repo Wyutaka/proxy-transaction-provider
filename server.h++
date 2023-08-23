@@ -73,32 +73,16 @@ namespace tcp_proxy {
 
         uint16_t extractBigEndian2Bytes(const unsigned char *data, size_t &start);
 
-        void processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue) {
-            size_t first_index = index;
-            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+        void
+        processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue);
 
-            std::string statement_id = extractString(downstream_data_, index);
+        void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
+                                std::string query);
 
-            std::string query = extractString(downstream_data_, index);
-
-            std::cout << "parse query: " << query << std::endl;
-
-            if (!statement_id.empty()) {
-                prepared_statements_lists[statement_id] = query;
-            }
-
-            index = first_index + 1 + message_size;
-            if (downstream_data_[index] == 'B') {
-                clientQueue.push('B');
-                processBindMessage(index, bytes_transferred, clientQueue);
-            } else {
-                index = 0;
-            }
-        };
-
-        void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue);
-
-        void processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query) {
+        void
+        processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
+                               std::string &query) {
+            std::cout << "processDesc" << std::endl;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             unsigned char ps_or_s = downstream_data_[index];
@@ -112,23 +96,29 @@ namespace tcp_proxy {
             }
         }
 
-        void processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query) {
+        void
+        processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
+                              std::string &query) {
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             std::string portal_name = extractString(downstream_data_, index);
 
             uint16_t return_row_size = extractBigEndian4Bytes(downstream_data_, index);
 
+            std::cout << "next message execute: " << downstream_data_[index] << std::endl;
             if (downstream_data_[index] == 'S') {
                 clientQueue.push('S');
+                index++;
                 processSyncMessage(index, bytes_transferred, clientQueue, query);
             } else if (downstream_data_[index] == 'P') {
                 clientQueue.push('P');
+                index++;
                 processParseMessage(index, bytes_transferred, clientQueue);
             }
         };
 
-        void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::string &query);
+        void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
+                                std::string &query);
 
         std::string extractString(const unsigned char *data, size_t &start) {
             size_t end = start;
@@ -144,6 +134,8 @@ namespace tcp_proxy {
 
         void dumpString(const std::string &str);
 
+        bool should_skip_query(const std::string &data);
+
 
         socket_type downstream_socket_;
 
@@ -153,8 +145,8 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_[max_data_length];
         boost::mutex mutex_;
-        static constexpr char *backend_host = "192.168.12.22";
-        static constexpr char *backend_postgres_conninfo = "host=192.168.12.22 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        static constexpr char *backend_host = "192.168.12.17";
+        static constexpr char *backend_postgres_conninfo = "host=192.168.12.17 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;

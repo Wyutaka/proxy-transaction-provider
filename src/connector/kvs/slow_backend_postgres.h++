@@ -152,82 +152,6 @@ namespace transaction {
             return bytes;
         }
 
-        void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char> &response_buffer) {
-            response_buffer.push_back('D');
-
-            int message_size = 4;
-            size_t last_index_D = response_buffer.size();
-
-            message_size += 2;
-
-            uint16_t twoBytes = static_cast<uint16_t>(num_field);
-
-            // 上位バイト (high byte) と下位バイト (low byte) を取得
-            unsigned char highByte = (twoBytes >> 8) & 0xFF;
-            unsigned char lowByte = twoBytes & 0xFF;
-
-            response_buffer.push_back(highByte);
-            response_buffer.push_back(lowByte);
-
-            for (int i = 0; i < num_field; ++i) {
-                const unsigned char *column_data = sqlite3_column_text(stmt, i);
-                int column_length = sqlite3_column_bytes(stmt, i);
-
-                message_size += 4;
-                auto column_length_bytes = toBigEndian(column_length);
-                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
-
-                message_size += column_length;
-                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
-            }
-
-//            auto message_size_bytes = toBigEndian(message_size);
-            auto message_size_bytes = intToBigEndian(message_size);
-
-            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
-                                   message_size_bytes.end());
-        }
-
-        void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char> &response_buffer) {
-            response_buffer.push_back('D');
-
-            int message_size = 4;
-            size_t last_index_D = response_buffer.size();
-
-            // Reserve space for message size
-
-            message_size += 2;
-
-            uint16_t twoBytes = static_cast<uint16_t>(num_field);
-
-            // 上位バイト (high byte) と下位バイト (low byte) を取得
-            unsigned char highByte = (twoBytes >> 8) & 0xFF;
-            unsigned char lowByte = twoBytes & 0xFF;
-
-            response_buffer.push_back(highByte);
-            response_buffer.push_back(lowByte);
-
-            for (int i = 0; i < num_field; ++i) {
-                const unsigned char *column_data = reinterpret_cast<const unsigned char *>(PQgetvalue(pg_res, row, i));
-                int column_length = PQgetlength(pg_res, row, i);
-                std::cout << "column data: " << column_data << std::endl;
-                std::cout << "column length:" << column_length << std::endl;
-
-                message_size += 4;
-                auto column_length_bytes = toBigEndian(column_length);
-                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
-
-                message_size += column_length;
-                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
-            }
-
-//            auto message_size_bytes = toBigEndian(message_size);
-            auto message_size_bytes = intToBigEndian(message_size);
-
-            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
-                                   message_size_bytes.end());
-        }
-
         std::vector<unsigned char> intToBigEndian(int32_t value) {
             std::vector<unsigned char> bytes(4);
 
@@ -284,12 +208,6 @@ namespace transaction {
                 unsigned char highByte = (twoBytes >> 8) & 0xFF;
                 unsigned char lowByte = twoBytes & 0xFF;
 
-                std::cout << "Value in hex: "
-                          << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(highByte)
-                          << " "
-                          << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(lowByte)
-                          << std::endl;
-
                 message_size += 2;
 
                 for (int i = 0; i < num_field; ++i) {
@@ -336,18 +254,12 @@ namespace transaction {
                     unsigned char highByte = (twoBytes >> 8) & 0xFF;
                     unsigned char lowByte = twoBytes & 0xFF;
 
-                    std::cout << "Value in hex: "
-                              << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(highByte)
-                              << " "
-                              << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(lowByte)
-                              << std::endl;
-
                     response_buffer.push_back(highByte);
                     response_buffer.push_back(lowByte);
 
                     message_size += 2;
 
-                    // 各フィールドにたいしｔ
+                    // 各フィールドにたいして
                     for (int i = 0; i < num_field; ++i) {
                         std::string field_name = PQfname(pg_res, i);
 
@@ -365,10 +277,6 @@ namespace transaction {
                     // Tの次にメッセージサイズついか
                     auto message_size_bytes = intToBigEndian(message_size);
 
-                    for (unsigned char byte: message_size_bytes) {
-                        std::cout << "0x" << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(byte)
-                                  << " ";
-                    }
                     response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
                                            message_size_bytes.end());
 
@@ -382,6 +290,149 @@ namespace transaction {
 //                PQfinish(&conn);
             }
 
+            std::cout << "num_row in row description :" << num_rows << std::endl;
+            return num_rows;
+//            sqlite3_finalize(stmt);
+//            sqlite3_close(sqlite_db);
+        }
+
+        void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char> &response_buffer) {
+            int message_size;
+            size_t last_index_D;
+            initializeBuffer(num_field, response_buffer, message_size, last_index_D);
+
+            for (int i = 0; i < num_field; ++i) {
+                auto column_data = sqlite3_column_text(stmt, i);
+                int column_length = sqlite3_column_bytes(stmt, i);
+                int column_type = sqlite3_column_type(stmt, i);
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size);
+            }
+
+            auto message_size_bytes = intToBigEndian(message_size);
+
+            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
+                                   message_size_bytes.end());
+        }
+
+
+        void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char> &response_buffer) {
+            int message_size;
+            size_t last_index_D;
+            initializeBuffer(num_field, response_buffer, message_size, last_index_D);
+
+            for (int i = 0; i < num_field; ++i) {
+                const auto *column_data = reinterpret_cast<const unsigned char *>(PQgetvalue(pg_res, row, i));
+                int column_length = PQgetlength(pg_res, row, i);
+                Oid column_type = PQftype(pg_res, i);
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size);
+            }
+
+            std::cout << "num_field:" << num_field << std::endl;
+            std::cout << "message_size:" << message_size << std::endl;
+
+            // メッセージサイズの挿入
+            auto message_size_bytes = intToBigEndian(message_size);
+            response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
+                                   message_size_bytes.end());
+        }
+
+        void initializeBuffer(int num_field, std::vector<unsigned char> &response_buffer, int &message_size, size_t &last_index_D) {
+            response_buffer.push_back('D');
+            message_size = 4 + 2;  // 4 for initial size and 2 for field count
+            last_index_D = response_buffer.size();
+
+            std::cout << "num_field in initializeBuffer:" << num_field << std::endl;
+            uint16_t twoBytes = static_cast<uint16_t>(num_field);
+//            std::cout << "twoBytes in initializeBuffer:" << num_field << std::endl;
+//
+//            auto field_count = intToBigEndian(twoBytes);
+//            response_buffer.insert(response_buffer.end(), field_count.begin(), field_count.end());
+
+            // 上位バイト (high byte) と下位バイト (low byte) を取得
+            unsigned char highByte = (twoBytes >> 8) & 0xFF;
+            unsigned char lowByte = twoBytes & 0xFF;
+
+            response_buffer.push_back(highByte);
+            response_buffer.push_back(lowByte);
+
+        }
+
+
+        void processColumnData(const unsigned char* column_data, int column_length, Oid column_type, std::vector<unsigned char> &response_buffer, int &message_size) {
+            message_size += 4;
+
+            std::cout << "column_data" << column_data << std::endl;
+            std::cout << "column_length" << column_length << std::endl;
+
+            if (column_type == SQLITE_TEXT || column_type != 23) {
+                auto column_length_bytes = intToBigEndian(column_length);
+                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
+
+                std::cout << "value in text" << std::endl;
+                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
+                message_size += column_length;
+
+            } else {
+                auto column_length_bytes = intToBigEndian(4);
+                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
+
+                int value = std::stoi(std::string(column_data, column_data + column_length));
+                auto binary_representation = intToBigEndian(value);
+
+                std::cout << "value in processColumnData:" << value << std::endl;
+                std::cout << "binay_reprensentation" << std::endl;
+                for (unsigned char byte: binary_representation) {
+                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+                }
+                std::cout << std::endl;
+
+                response_buffer.insert(response_buffer.end(), binary_representation.begin(), binary_representation.end());
+                message_size += 4;
+            }
+        }
+
+        // Bindメッセージに対するレスポンスRowDescription
+        // 識別子: D
+        int
+        create_row_data_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
+                                       Request &req) {
+            std::cout << "row_data_message" << std::endl;
+
+            int num_rows = 0;
+            auto query = req.query().query().data();
+
+            // バックエンドへの問い合わせ
+            sqlite3_stmt *stmt;
+            int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
+            rc = sqlite3_step(stmt);
+
+            if (rc == SQLITE_ROW) { // Data exists in SQLite
+                int num_field = sqlite3_column_count(stmt);
+                std::cout << "from sqlite" << num_field << std::endl;
+                // Dメッセージを追加
+                while (rc == SQLITE_ROW) {
+                    num_rows++;
+                    addRowDataToBuffer(stmt, num_field, response_buffer);
+                    rc = sqlite3_step(stmt);
+                }
+
+            } else {
+                // No result from SQLite, query from Postgres
+                // ... [Same as before, up to the Postgres processing]
+                PGresult *pg_res = PQexec(&conn, query);
+                if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
+                    int num_field = PQnfields(pg_res);
+                    std::cout << "from postgres" << num_field << std::endl;
+                    // Dのメッセージを追加
+                    num_rows = PQntuples(pg_res);
+                    for (int row = 0; row < num_rows; ++row) {
+                        addRowDataToBuffer(pg_res, row, num_field, response_buffer);
+                    }
+//                    PQclear(pg_res);
+                }
+//                PQfinish(&conn);
+            }
+            std::cout << "num_row in row data :" << num_rows << std::endl;
             return num_rows;
 //            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
@@ -428,7 +479,9 @@ namespace transaction {
 
             // message_size_C += 挿入した文字列数
             message_size_C += command_tag.size() + 1;
-            std::cout << "C message size:" << std::to_string(message_size_C) << std::endl;
+//            std::cout << "C message size:" << std::to_string(message_size_C) << std::endl;
+            std::cout << "num_rows" << num_rows << std::endl;
+            std::cout << "command_tag" << command_tag << std::endl;
 
             auto message_size_bytes = intToBigEndian(message_size_C);
 
@@ -439,7 +492,7 @@ namespace transaction {
             response_buffer.insert(response_buffer.end(), command_tag.begin(), command_tag.end());
 
             response_buffer.push_back(0); // null terminator
-            std::cout << "complettion: " << command_tag << std::endl;
+//            std::cout << "complettion: " << command_tag << std::endl;
         }
 
         void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, int32_t data) {
@@ -485,8 +538,9 @@ namespace transaction {
 
         // Syncメッセージに対するレスポンスReadyForQuery
         // 識別子: Z
+        // TODO transaction stateを動的に決定
         void create_ready_for_query_message(std::vector<unsigned char> &response_buffer) {
-            unsigned char message[] = {0x5a, 0x00, 0x00, 0x00, 0x05, 0x73};
+            unsigned char message[] = {0x5a, 0x00, 0x00, 0x00, 0x05, 0x49};
             response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
         }
 
@@ -592,12 +646,11 @@ namespace transaction {
         // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
         void process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
+            // commmand_completeメッセージのための行数
+            int num_rows = 0;
             while (!client_queue.empty()) {  // キューが空になるまでループ
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
-
-                // commmand_completeメッセージのための行数
-                int num_rows = 0;
 
                 switch (client_message) {
                     case 'P':
@@ -605,6 +658,18 @@ namespace transaction {
                         break;
                     case 'B':
                         create_bind_complete_message(response_buffer);
+
+                        if (req.query().isSelect() && client_queue.front() != 'D') {
+                            // 次が'D'じゃない時,DataRowだけ返す
+                            std::cout << "get B with select query so create T D message" << std::endl;
+                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, req);
+                        }
+//                        if (req.query().query().empty()) {
+//                            create_no_data_message(response_buffer);
+//                        } else {
+//                            std::cout << "tes D Q" << std::endl;
+//                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
+//                        }
                         break;
                     case 'D':
                         if (req.query().query().empty()) {
@@ -615,14 +680,16 @@ namespace transaction {
                         }
                         break;
                     case 'E':
+                        std::cout << "num rows process client :" << num_rows << std::endl;
                         create_command_complete_message(response_buffer, req, num_rows);
+                        num_rows = 0;
                         break;
                     case 'S':
                         create_ready_for_query_message(response_buffer);
                         break;
                     case 'Q':
                         create_row_description_message(in_mem_db, response_buffer, conn, req);
-                        // TODO これ、Qがれんぞくしたらだめ？
+                        // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
                         client_queue.push('E');
                         client_queue.push('S');
                     default:
@@ -667,6 +734,8 @@ namespace transaction {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
             std::vector<unsigned char> response_buffer;
+
+            printQueue(client_queue);
 
             std::cout << "process_client_message" << std::endl;
             process_client_message(response_buffer, req.queue(), in_mem_db, *_conn, req);

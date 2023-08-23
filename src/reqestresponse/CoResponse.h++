@@ -59,7 +59,6 @@ namespace transaction {
         }
 
         void set_raw_response(std::vector<unsigned char> bytes) {
-            std::cout << "set_raw_response" << std::endl;
             raw_response = std::move(bytes);
             std::cout << "std::move" << std::endl;
 
