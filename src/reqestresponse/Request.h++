@@ -26,6 +26,8 @@ namespace transaction {
         std::queue<Query> _queries_queue;
         Peer _peer;
         std::queue<unsigned char> _cliend_queue;
+        // クライアントに返すカラムの書式コード(クエリ毎に持ち、1クエリに対してstd::queue<int>が割り当てられる)
+        std::queue<std::queue<int>> _column_format_codes;
 //        std::string _raw_request;
 
     public:
@@ -37,9 +39,11 @@ namespace transaction {
         Request(Peer p, Query query, std::queue<unsigned char> client_queue)
                 : Request(std::move(p), std::vector<Query>{query}, std::move(client_queue)) {}
 
-        Request(Peer p, std::queue<Query> queries, std::queue<unsigned char> client_queue)
+        Request(Peer p, std::queue<Query> queries, std::queue<unsigned char> client_queue,
+                std::queue<std::queue<int>> column_format_codes)
                 : Request(std::move(p), queries.front(), std::move(client_queue)) {
             _queries_queue = queries;
+            _column_format_codes = std::move(column_format_codes);
         }
 
     public:
@@ -56,6 +60,7 @@ namespace transaction {
             return _queries[0]; }
         [[nodiscard]] const Peer &peer() const { return _peer; }
         [[nodiscard]] const std::queue<unsigned char> client_queue() const { return _cliend_queue; }
+        const std::queue<std::queue<int>> column_format_codes() const {return _column_format_codes; }
     };
 }
 

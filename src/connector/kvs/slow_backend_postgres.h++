@@ -133,6 +133,7 @@ namespace transaction {
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
             auto client_queue = req.client_queue();
             auto query_queue = req.queryQueue();
+            auto column_format_codes = req.column_format_codes();
             std::cout << "query size : " << query_queue.size() << std::endl;
             // commmand_completeメッセージのための行数
             int num_rows = 0;
@@ -149,7 +150,6 @@ namespace transaction {
                 switch (client_message) {
                     case 'P':
                         create_parse_complete_message(response_buffer);
-                        std::cout << 'end create response_buffer P';
                         break;
                     case 'B':
                         create_bind_complete_message(response_buffer);
@@ -159,7 +159,7 @@ namespace transaction {
                         if (req.query().isSelect() && client_queue.front() != 'D') {
                             // 次が'D'じゃない時,DataRowだけ返す
 //                            std::cout << "get B with select query so create T D message" << std::endl;
-                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue);
+                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
                         }
                         break;
                     case 'D':
@@ -167,12 +167,12 @@ namespace transaction {
                             create_no_data_message(response_buffer);
                         } else {
 //                            std::cout << "tes D Q" << std::endl;
-                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, query_queue);
+                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
                         }
                         break;
                     case 'E':
 //                        std::cout << "num rows process client :" << num_rows << std::endl;
-                        create_command_complete_message(response_buffer, query_queue, num_rows);
+                        create_command_complete_message(response_buffer, query_queue, num_rows, column_format_codes);
                         num_rows = 0;
                         break;
                     case 'S':
@@ -180,7 +180,7 @@ namespace transaction {
                         create_ready_for_query_message(response_buffer);
                         break;
                     case 'Q':
-                        create_row_description_message(in_mem_db, response_buffer, conn, query_queue);
+                        create_row_description_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
                         // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
                         client_queue.push('E');
                         client_queue.push('S');
@@ -219,8 +219,11 @@ namespace transaction {
         // RowDescriptionメッセージに対するレスポンスRowDescription
         // 識別子: T
         int
-        create_row_description_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
-                                       std::queue<Query> &query_queue) {
+        create_row_description_message(sqlite3 *in_mem_db,
+                                       std::vector<unsigned char> &response_buffer,
+                                       PGconn &conn,
+                                       std::queue<Query> &query_queue,
+                                       std::queue<std::queue<int>> &column_format_codes) {
             std::cout << "create_row_desc_message" << std::endl;
             // Tの追加
             response_buffer.push_back('T');
@@ -277,7 +280,7 @@ namespace transaction {
                 // Dメッセージを追加
                 while (rc == SQLITE_ROW) {
                     num_rows++;
-                    addRowDataToBuffer(stmt, num_field, response_buffer);
+                    addRowDataToBuffer(stmt, num_field, response_buffer, column_format_codes);
                     rc = sqlite3_step(stmt);
                 }
 
@@ -327,7 +330,7 @@ namespace transaction {
                     // Dのメッセージを追加
                     num_rows = PQntuples(pg_res);
                     for (int row = 0; row < num_rows; ++row) {
-                        addRowDataToBuffer(pg_res, row, num_field, response_buffer);
+                        addRowDataToBuffer(pg_res, row, num_field, response_buffer, column_format_codes);
                     }
 //                    PQclear(pg_res);
 
@@ -371,16 +374,28 @@ namespace transaction {
             return bytes;
         }
 
-        void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char> &response_buffer) {
+        void addRowDataToBuffer(sqlite3_stmt *stmt,
+                                int num_field,
+                                std::vector<unsigned char> &response_buffer,
+                                std::queue<std::queue<int>> &column_format_codes) {
             int message_size;
             size_t last_index_D;
             initializeBuffer(num_field, response_buffer, message_size, last_index_D);
+
+            auto column_format_code = column_format_codes.front();
 
             for (int i = 0; i < num_field; ++i) {
                 auto column_data = sqlite3_column_text(stmt, i);
                 int column_length = sqlite3_column_bytes(stmt, i);
                 int column_type = sqlite3_column_type(stmt, i);
-                processColumnData(column_data, column_length, column_type, response_buffer, message_size);
+
+                int one_format_code = 0;
+                if (!column_format_code.empty()) {
+                    one_format_code = column_format_code.front();
+                }
+
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
+                column_format_code.pop();
             }
 
             auto message_size_bytes = intToBigEndian(message_size);
@@ -390,16 +405,29 @@ namespace transaction {
         }
 
 
-        void addRowDataToBuffer(PGresult *pg_res, int row, int num_field, std::vector<unsigned char> &response_buffer) {
+        void addRowDataToBuffer(PGresult *pg_res,
+                                int row,
+                                int num_field,
+                                std::vector<unsigned char> &response_buffer,
+                                std::queue<std::queue<int>> &column_format_codes) {
             int message_size;
             size_t last_index_D;
             initializeBuffer(num_field, response_buffer, message_size, last_index_D);
+
+            auto column_format_code = column_format_codes.front();
 
             for (int i = 0; i < num_field; ++i) {
                 const auto *column_data = reinterpret_cast<const unsigned char *>(PQgetvalue(pg_res, row, i));
                 int column_length = PQgetlength(pg_res, row, i);
                 Oid column_type = PQftype(pg_res, i);
-                processColumnData(column_data, column_length, column_type, response_buffer, message_size);
+
+                int one_format_code = 0;
+                if (!column_format_code.empty()) {
+                    one_format_code = column_format_code.front();
+                }
+
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
+                column_format_code.pop();
             }
 
             std::cout << "num_field:" << num_field << std::endl;
@@ -433,13 +461,19 @@ namespace transaction {
         }
 
 
-        void processColumnData(const unsigned char* column_data, int column_length, Oid column_type, std::vector<unsigned char> &response_buffer, int &message_size) {
+        void processColumnData(const unsigned char* column_data,
+                               int column_length,
+                               Oid column_type,
+                               std::vector<unsigned char> &response_buffer,
+                               int &message_size,
+                               int format_code) {
             message_size += 4;
 
             std::cout << "column_data" << column_data << std::endl;
             std::cout << "column_length" << column_length << std::endl;
 
-            if (column_type == SQLITE_TEXT || column_type != 23) {
+            // int以外
+            if (column_type == SQLITE_TEXT || column_type != 23 || format_code == 0) {
                 auto column_length_bytes = intToBigEndian(column_length);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
@@ -448,6 +482,7 @@ namespace transaction {
                 message_size += column_length;
 
             } else {
+                // int
                 auto column_length_bytes = intToBigEndian(4);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
@@ -469,8 +504,11 @@ namespace transaction {
         // Bindメッセージに対するレスポンスRowDescription
         // 識別子: D
         int
-        create_row_data_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
-                                       std::queue<Query> &query_queue) {
+        create_row_data_message(sqlite3 *in_mem_db,
+                                std::vector<unsigned char> &response_buffer,
+                                PGconn &conn,
+                                std::queue<Query> &query_queue,
+                                std::queue<std::queue<int>> &column_format_codes) {
 
             int num_rows = 0;
             auto query = query_queue.front().query().data();
@@ -486,7 +524,7 @@ namespace transaction {
                 // Dメッセージを追加
                 while (rc == SQLITE_ROW) {
                     num_rows++;
-                    addRowDataToBuffer(stmt, num_field, response_buffer);
+                    addRowDataToBuffer(stmt, num_field, response_buffer, column_format_codes);
                     rc = sqlite3_step(stmt);
                 }
 
@@ -500,7 +538,7 @@ namespace transaction {
                     // Dのメッセージを追加
                     num_rows = PQntuples(pg_res);
                     for (int row = 0; row < num_rows; ++row) {
-                        addRowDataToBuffer(pg_res, row, num_field, response_buffer);
+                        addRowDataToBuffer(pg_res, row, num_field, response_buffer, column_format_codes);
                     }
 //                    PQclear(pg_res);
                 }
@@ -520,8 +558,10 @@ namespace transaction {
             return result;
         }
 
-        void create_command_complete_message(std::vector<unsigned char> &response_buffer, std::queue<Query> &query_queue
-                                             , int num_rows) {
+        void create_command_complete_message(std::vector<unsigned char> &response_buffer,
+                                             std::queue<Query> &query_queue,
+                                             int num_rows,
+                                             std::queue<std::queue<int>> &column_format_codes) {
             // 'C'をresponse_bufferの末尾に追加
             response_buffer.push_back('C');
 
@@ -576,6 +616,9 @@ namespace transaction {
 
             // クエリキューの先頭を削除
             query_queue.pop();
+
+            // 書式データの削除
+            column_format_codes.pop();
         }
 
         void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, int32_t data) {
