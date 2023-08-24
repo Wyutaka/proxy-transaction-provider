@@ -189,7 +189,8 @@ namespace tcp_proxy {
          * データベースのシステムカタログpg_databaseから行を取り出す。
          */
         std::string get_cursor_query = "DECLARE myportal CURSOR FOR ";
-        res = PQexec(&conn, (get_cursor_query + req.query().query().data()).c_str()); // TODO クエリの反映
+        auto first_query = req.queries().front();
+        res = PQexec(&conn, (get_cursor_query + first_query.query().data()).c_str()); // TODO クエリの反映
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(&conn));
             PQclear(res);
@@ -397,6 +398,8 @@ namespace tcp_proxy {
 
             // クライアントのメッセージ形式を保存するキュー
             std::queue<unsigned char> clientQueue;
+            // クエリを複数保存するキュー
+            std::queue<transaction::Query> queryQueue;
 
             // 1バイト目が'Q'のとき
             if (downstream_data_[0] == 0x51) {
@@ -419,7 +422,7 @@ namespace tcp_proxy {
 //                std::cout << "create req " << std::endl;
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
-                        transaction::Peer(upstream_host_, upstream_port_), query, clientQueue); // n-4 00まで含める｀h
+                        transaction::Peer(upstream_host_, upstream_port_), transaction::Query(query), clientQueue); // n-4 00まで含める｀h
 
 //                std::cout << "create res" << std::endl;
                 // レスポンス生成
@@ -455,8 +458,8 @@ namespace tcp_proxy {
             else if (downstream_data_[0] == 0x42) {
                 size_t index = 1;
                 clientQueue.push('B');
-                // statementidがあるはずh
-                processBindMessage(index, bytes_transferred, clientQueue, "");
+                // statementidがあるはず
+                processBindMessage(index, bytes_transferred, clientQueue, "", queryQueue);
 
                 // とりあえず後ろに流す TODO 多分いらない
 //                async_write(upstream_socket_,
@@ -470,7 +473,7 @@ namespace tcp_proxy {
             else if (downstream_data_[0] == 0x50) {
                 size_t index = 1;
                 clientQueue.push('P');
-                processParseMessage(index, bytes_transferred, clientQueue);
+                processParseMessage(index, bytes_transferred, clientQueue, queryQueue);
 
                 // とりあえず後ろに流す TODO 多分いらない
 //                async_write(upstream_socket_,
@@ -530,85 +533,9 @@ namespace tcp_proxy {
         return false;
     }
 
-    // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
-    // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
-    void
-    bridge::processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                               std::string query) {
-        size_t first_index = index;
-
-        uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
-
-        index += 1;
-        std::string statement_id = extractString(downstream_data_, index);
-
-//        std::string query;
-        // region statementIDがある時のバインド処理
-        if (!statement_id.empty() && prepared_statements_lists.count(statement_id)) {
-            query = prepared_statements_lists[statement_id];
-        }
-
-        uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
-
-        std::vector<uint16_t> type_parameters(num_parameters);
-
-        for (uint16_t i = 0; i < num_parameters; ++i) {
-            type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
-        }
-
-        index += 2; // parameter value の先頭2バイトをスキップ
-        std::vector<std::string> datas;
-        for (uint16_t i = 0; i < num_parameters; ++i) {
-            uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
-            if (type_parameters[i] == 0) {
-                // Text format
-                std::string value = extractString(downstream_data_, index);
-                datas.emplace_back(value); // インデックスの更新
-
-
-                index += data_size;
-            } else if (type_parameters[i] == 1) {
-                // Binary format - for simplicity, we're assuming it's a 4-byte integer.
-                // A real proxy should handle all binary types properly.
-                uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
-
-                datas.push_back(std::to_string(value));
-            }
-        }
-
-        for (size_t i = 0; i < datas.size(); ++i) {
-            std::string placeholder = "$" + std::to_string(i + 1);
-            size_t pos = query.find(placeholder);
-            if (pos != std::string::npos) {
-                query.replace(pos, placeholder.length(), datas[i]);
-            }
-        }
-        // end region statementIDがある時のバインド処理
-
-
-        std::cout << "Bind query: " << query << std::endl;
-
-        index = first_index + message_size; // 1 + message_size + 1
-        std::cout << "next message bind: " << downstream_data_[index] << std::endl;
-
-        if (downstream_data_[index] == 'D') {
-            clientQueue.push('D');
-            index++;
-            processDescribeMessage(index, bytes_transferred, clientQueue, query);
-        } else if (downstream_data_[index] == 'E') {
-            clientQueue.push('E');
-            index++;
-            processExecuteMessage(index, bytes_transferred, clientQueue, query);
-        }
-
-
-//        debug::hexdump(reinterpret_cast<const char *>(downstream_data_), 128); // 下流バッファバッファ16進表示 test
-
-    }
-
     void
     bridge::processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                               std::string &query) {
+                               std::string &query, std::queue<transaction::Query> &queries) {
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
         std::cout << "next message processSync: 0x"
@@ -622,7 +549,8 @@ namespace tcp_proxy {
         };
 
         // リクエストの生成
-        const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_), query,
+        const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_),
+                                                               queries,
                                                                clientQueue); // n-4 00まで含める｀h
 
         // レスポンス生成
@@ -638,14 +566,15 @@ namespace tcp_proxy {
             clientQueue.push('P');
             index++;
             std::cout << "p" << std::endl;
-            processParseMessage(index, bytes_transferred, clientQueue);
+            processParseMessage(index, bytes_transferred, clientQueue, queries);
         } else if (downstream_data_[index] == 'B') {
             clientQueue.push('B');
             index++;
             std::cout << "B" << std::endl;
 
             // statemtn_idがある
-            processBindMessage(index, bytes_transferred, clientQueue, "");
+            // Bindを最初に受け取った場合はstatementIDが必ずあるはずなので、””をクエリにする
+            processBindMessage(index, bytes_transferred, clientQueue, "", queries);
         } else {
             std::cout << "write to backend" << std::endl;
 
@@ -690,46 +619,6 @@ namespace tcp_proxy {
                        data[index + 1];
         index += 2;
         return val;
-    }
-
-    void bridge::processParseMessage(size_t &index, const size_t &bytes_transferred,
-                                     std::queue<unsigned char> &clientQueue) {
-        size_t first_index = index;
-        uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
-
-        std::string statement_id = extractString(downstream_data_, index);
-
-        std::string query = extractString(downstream_data_, index);
-
-//        // 初期化とか設定のクエリはスキップ
-//        if (should_skip_query(query)) {
-//            std::cout << "skip query: " << query << std::endl;
-//
-//            async_write(upstream_socket_,
-//                        boost::asio::buffer(downstream_data_, bytes_transferred),
-//                        boost::bind(&bridge::handle_upstream_write,
-//                                    shared_from_this(),
-//                                    boost::asio::placeholders::error));
-//            return;
-//        }
-
-        std::cout << "parse query: " << query << std::endl;
-
-        if (!statement_id.empty()) {
-            prepared_statements_lists[statement_id] = query;
-        }
-
-        index = first_index + message_size;
-        std::cout << "next message parse: " << downstream_data_[index] << std::endl;
-
-        if (downstream_data_[index] == 'B') {
-            std::cout << "goto BIND:" << query << std::endl;
-            clientQueue.push('B');
-            index++;
-            processBindMessage(index, bytes_transferred, clientQueue, query);
-        } else {
-            index = 0;
-        }
     }
 
     void bridge::dumpString(const std::string &str) {

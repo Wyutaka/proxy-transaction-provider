@@ -13,6 +13,7 @@
 #include <queue>
 #include <iostream>
 #include "src/ThreadPool/ThreadPool.h++"
+#include "query.h++"
 //#include "src/reqestresponse/Request.h++"
 #include <sqlite3.h>
 
@@ -74,14 +75,123 @@ namespace tcp_proxy {
         uint16_t extractBigEndian2Bytes(const unsigned char *data, size_t &start);
 
         void
-        processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue);
+        processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue, std::queue<transaction::Query> &queryQueue) {
+            size_t first_index = index;
+            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
+            std::string statement_id = extractString(downstream_data_, index);
+
+            std::string query = extractString(downstream_data_, index);
+
+//        // 初期化とか設定のクエリはスキップ
+//        if (should_skip_query(query)) {
+//            std::cout << "skip query: " << query << std::endl;
+//
+//            async_write(upstream_socket_,
+//                        boost::asio::buffer(downstream_data_, bytes_transferred),
+//                        boost::bind(&bridge::handle_upstream_write,
+//                                    shared_from_this(),
+//                                    boost::asio::placeholders::error));
+//            return;
+//        }
+
+            std::cout << "parse query: " << query << std::endl;
+
+            if (!statement_id.empty()) {
+                prepared_statements_lists[statement_id] = query;
+            }
+
+            index = first_index + message_size;
+            std::cout << "next message parse: " << downstream_data_[index] << std::endl;
+
+            if (downstream_data_[index] == 'B') {
+                std::cout << "goto BIND:" << query << std::endl;
+                clientQueue.push('B');
+                index++;
+                processBindMessage(index, bytes_transferred, clientQueue, query, queryQueue);
+            } else {
+                index = 0;
+            }
+        };
+
+
+        // <パラメータの総数(2byte)><パラメータの型(2byte)><パラメータの総数(2byte)><<パラメータサイズ(4byte),データ(パラメータサイズ)>>
+        // 呼び出す前にメッセージ形式の最初は処理済みであること('B'の次をindexが指していることがのぞましい)
         void processBindMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                                std::string query);
+                                std::string query, std::queue<transaction::Query> &queryQueue) {
+            size_t first_index = index;
+
+            uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+
+            index += 1;
+            std::string statement_id = extractString(downstream_data_, index);
+
+//        std::string query;
+            // region statementIDがある時のバインド処理
+            if (!statement_id.empty() && prepared_statements_lists.count(statement_id)) {
+                query = prepared_statements_lists[statement_id];
+            }
+
+            uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
+
+            std::vector<uint16_t> type_parameters(num_parameters);
+
+            for (uint16_t i = 0; i < num_parameters; ++i) {
+                type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
+            }
+
+            index += 2; // parameter value の先頭2バイトをスキップ
+            std::vector<std::string> datas;
+            for (uint16_t i = 0; i < num_parameters; ++i) {
+                uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
+                if (type_parameters[i] == 0) {
+                    // Text format
+                    std::string value = extractString(downstream_data_, index);
+                    datas.emplace_back(value); // インデックスの更新
+
+
+                    index += data_size;
+                } else if (type_parameters[i] == 1) {
+                    // Binary format - for simplicity, we're assuming it's a 4-byte integer.
+                    // A real proxy should handle all binary types properly.
+                    uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
+
+                    datas.push_back(std::to_string(value));
+                }
+            }
+
+            for (size_t i = 0; i < datas.size(); ++i) {
+                std::string placeholder = "$" + std::to_string(i + 1);
+                size_t pos = query.find(placeholder);
+                if (pos != std::string::npos) {
+                    query.replace(pos, placeholder.length(), datas[i]);
+                }
+            }
+            // end region statementIDがある時のバインド処理
+
+
+            std::cout << "Bind query: " << query << std::endl;
+
+            // キューにクエリを追加
+            queryQueue.push(transaction::Query(query));
+
+            index = first_index + message_size; // 1 + message_size + 1
+            std::cout << "next message bind: " << downstream_data_[index] << std::endl;
+
+            if (downstream_data_[index] == 'D') {
+                clientQueue.push('D');
+                index++;
+                processDescribeMessage(index, bytes_transferred, clientQueue, query, queryQueue);
+            } else if (downstream_data_[index] == 'E') {
+                clientQueue.push('E');
+                index++;
+                processExecuteMessage(index, bytes_transferred, clientQueue, query, queryQueue);
+            }
+        }
 
         void
         processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                               std::string &query) {
+                               std::string &query, std::queue<transaction::Query> &queries) {
             std::cout << "processDesc" << std::endl;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
@@ -92,13 +202,13 @@ namespace tcp_proxy {
 
             if (downstream_data_[index] == 'E') {
                 clientQueue.push('E');
-                processExecuteMessage(index, bytes_transferred, clientQueue, query);
+                processExecuteMessage(index, bytes_transferred, clientQueue, query, queries);
             }
         }
 
         void
         processExecuteMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                              std::string &query) {
+                              std::string &query, std::queue<transaction::Query> &queries) {
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             std::string portal_name = extractString(downstream_data_, index);
@@ -109,16 +219,16 @@ namespace tcp_proxy {
             if (downstream_data_[index] == 'S') {
                 clientQueue.push('S');
                 index++;
-                processSyncMessage(index, bytes_transferred, clientQueue, query);
+                processSyncMessage(index, bytes_transferred, clientQueue, query, queries);
             } else if (downstream_data_[index] == 'P') {
                 clientQueue.push('P');
                 index++;
-                processParseMessage(index, bytes_transferred, clientQueue);
+                processParseMessage(index, bytes_transferred, clientQueue, queries);
             }
         };
 
         void processSyncMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
-                                std::string &query);
+                                std::string &query, std::queue<transaction::Query> &queries);
 
         std::string extractString(const unsigned char *data, size_t &start) {
             size_t end = start;

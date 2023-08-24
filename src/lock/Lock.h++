@@ -54,25 +54,25 @@ namespace transaction::lock {
                 std::cout << req.query().query() << std::endl;
             // const auto query = req.query() | tolower;
 
-                if (req.query().isBegin()) {
-                if (!_getLock(req.peer())) {
-                    return Response({CoResponse(Status::Error)});
-                } else {
-//                    std::cout << "Lock succeed" << std::endl;
-                    return Response({CoResponse(Status::Ok)});
-                }
-            } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
-                if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
-                    return Response({CoResponse(Status::Error)});
-                }
-                _lock.clear();
-                return Response({CoResponse(Status::Commit)});
-            } else if (_lock.test()) {
-                Sl sl(*_mutex);
-                if (req.peer() != _currentLocker) {
-                    return Response({CoResponse(Status::Error)});
-                }
-            }
+//                if (req.query().isBegin()) {
+//                if (!_getLock(req.peer())) {
+//                    return Response({CoResponse(Status::Error)});
+//                } else {
+////                    std::cout << "Lock succeed" << std::endl;
+//                    return Response({CoResponse(Status::Ok)});
+//                }
+//            } else if (req.query().isInsertIfNotExists() || req.query().isCommit() || req.query().isRollback()) {
+//                if (!_getLock(req.peer()) && req.query().isInsertIfNotExists()) {
+//                    return Response({CoResponse(Status::Error)});
+//                }
+//                _lock.clear();
+//                return Response({CoResponse(Status::Commit)});
+//            } else if (_lock.test()) {
+//                Sl sl(*_mutex);
+//                if (req.peer() != _currentLocker) {
+//                    return Response({CoResponse(Status::Error)});
+//                }
+//            }
             write_query_to_wal(wal_file_name.data(), req.query().query().data());
             if (!req.query().isSelect()) {
                 query_queue.push(req.query().query().data());

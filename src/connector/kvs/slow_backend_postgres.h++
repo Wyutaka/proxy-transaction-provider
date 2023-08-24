@@ -129,8 +129,10 @@ namespace transaction {
         // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
         // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
         // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
-        void process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
+        void process_client_message(std::vector<unsigned char> &response_buffer,
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
+            auto client_queue = req.client_queue();
+            auto query_queue = req.queryQueue();
             // commmand_completeメッセージのための行数
             int num_rows = 0;
             while (!client_queue.empty()) {  // キューが空になるまでループ
@@ -138,10 +140,14 @@ namespace transaction {
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
                 std::cout << "client message :" << client_message << std::endl;
+                std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
+
+                std::cout << "test " << query_queue.front().query().data() << std::endl;
 
                 switch (client_message) {
                     case 'P':
                         create_parse_complete_message(response_buffer);
+                        std::cout << 'end create response_buffer P';
                         break;
                     case 'B':
                         create_bind_complete_message(response_buffer);
@@ -151,27 +157,28 @@ namespace transaction {
                         if (req.query().isSelect() && client_queue.front() != 'D') {
                             // 次が'D'じゃない時,DataRowだけ返す
 //                            std::cout << "get B with select query so create T D message" << std::endl;
-                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, req);
+                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue);
                         }
                         break;
                     case 'D':
-                        if (req.query().query().empty()) {
+                        if (query_queue.front().query().empty()) {
                             create_no_data_message(response_buffer);
                         } else {
 //                            std::cout << "tes D Q" << std::endl;
-                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
+                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, query_queue);
                         }
                         break;
                     case 'E':
 //                        std::cout << "num rows process client :" << num_rows << std::endl;
-                        create_command_complete_message(response_buffer, req, num_rows);
+                        create_command_complete_message(response_buffer, query_queue, num_rows);
                         num_rows = 0;
                         break;
                     case 'S':
+                        std::cout << "test in S "<< std::endl;
                         create_ready_for_query_message(response_buffer);
                         break;
                     case 'Q':
-                        create_row_description_message(in_mem_db, response_buffer, conn, req);
+                        create_row_description_message(in_mem_db, response_buffer, conn, query_queue);
                         // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
                         client_queue.push('E');
                         client_queue.push('S');
@@ -182,6 +189,7 @@ namespace transaction {
 
                 // response_bufferを何らかの方法で送信するか、他の処理を行う
             }
+            std::cout << "end process client message" <<std::endl;
         }
 
 
@@ -210,7 +218,7 @@ namespace transaction {
         // 識別子: T
         int
         create_row_description_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
-                                       Request &req) {
+                                       std::queue<Query> &query_queue) {
             std::cout << "create_row_desc_message" << std::endl;
             // Tの追加
             response_buffer.push_back('T');
@@ -221,7 +229,7 @@ namespace transaction {
             int num_rows = 0;
 
             int message_size = 4;
-            auto query = req.query().query().data();
+            auto query = query_queue.front().query().data();
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
@@ -460,11 +468,10 @@ namespace transaction {
         // 識別子: D
         int
         create_row_data_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,
-                                       Request &req) {
-            std::cout << "row_data_message" << std::endl;
+                                       std::queue<Query> &query_queue) {
 
             int num_rows = 0;
-            auto query = req.query().query().data();
+            auto query = query_queue.front().query().data();
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
@@ -511,8 +518,8 @@ namespace transaction {
             return result;
         }
 
-
-        void create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req, int num_rows) {
+        void create_command_complete_message(std::vector<unsigned char> &response_buffer, std::queue<Query> &query_queue
+                                             , int num_rows) {
             // 'C'をresponse_bufferの末尾に追加
             response_buffer.push_back('C');
 
@@ -524,7 +531,9 @@ namespace transaction {
 
             // command_tagを設定
             std::string command_tag;
-            std::string query_str_lower = to_lowercase(req.query().query().data());  // Simplified for example
+
+            auto query = query_queue.front();
+            std::string query_str_lower = to_lowercase(query.query().data());  // Simplified for example
 
             if (query_str_lower.find("insert") != std::string::npos) {
                 command_tag = "INSERT 0 " + std::to_string(num_rows);
@@ -540,6 +549,10 @@ namespace transaction {
                 command_tag = "FETCH " + std::to_string(num_rows);
             } else if (query_str_lower.find("copy") != std::string::npos) {
                 command_tag = "COPY " + std::to_string(num_rows);
+            } else if (query_str_lower.find("begin") != std::string::npos) {
+                command_tag = "BEGIN";
+            } else if (query_str_lower.find("commit") != std::string::npos) {
+                command_tag = "COMMIT";
             }
 
             // message_size_C += 挿入した文字列数
@@ -558,6 +571,9 @@ namespace transaction {
 
             response_buffer.push_back(0); // null terminator
 //            std::cout << "complettion: " << command_tag << std::endl;
+
+            // クエリキューの先頭を削除
+            query_queue.pop();
         }
 
         void insertToResponseBuffer(std::vector<unsigned char> &response_buffer, int &message_size, int32_t data) {
@@ -731,16 +747,16 @@ namespace transaction {
         // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
 
         Response operator()(const Request &req, sqlite3 *in_mem_db) {
-            auto client_queue = req.queue();
-
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
             std::vector<unsigned char> response_buffer;
 
+            auto client_queue = req.client_queue();
+
             printQueue(client_queue);
 
             std::cout << "process_client_message" << std::endl;
-            process_client_message(response_buffer, req.queue(), in_mem_db, *_conn, req);
+            process_client_message(response_buffer, in_mem_db, *_conn, req);
 
 //            if (req.query().isSelect()) {
 //

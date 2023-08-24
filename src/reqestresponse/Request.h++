@@ -34,11 +34,12 @@ namespace transaction {
                 , _cliend_queue(std::move(client_queue)) {}
 
         Request(Peer p, Query query, std::queue<unsigned char> client_queue)
-                : Request(std::move(p), std::vector<Query>{query}, std::move(client_queue)) {
-        }
+                : Request(std::move(p), std::vector<Query>{query}, std::move(client_queue)) {}
 
-        Request(Peer p, std::string_view query_body, std::queue<unsigned char> client_queue)
-                : Request(std::move(p), Query(query_body), std::move(client_queue)) {}
+        Request(Peer p, std::queue<Query> queries, std::queue<unsigned char> client_queue)
+                : Request(std::move(p), queries.front(), std::move(client_queue)) {
+            _queries_queue = queries;
+        }
 
     public:
         [[nodiscard]] auto begin() { return std::begin(_queries); }
@@ -48,10 +49,12 @@ namespace transaction {
 
     public:
         [[nodiscard]] const std::vector<Query> queries() const { return _queries; }
+        [[nodiscard]] const std::queue<Query> queryQueue() const {return _queries_queue;}
+        void addQuery(std::string_view query) { _queries_queue.push(Query(query)); }
         [[nodiscard]] const Query &query() const {
             return _queries[0]; }
         [[nodiscard]] const Peer &peer() const { return _peer; }
-        [[nodiscard]] const std::queue<unsigned char> queue() const { return _cliend_queue; }
+        [[nodiscard]] const std::queue<unsigned char> client_queue() const { return _cliend_queue; }
     };
 }
 
