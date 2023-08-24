@@ -23,6 +23,7 @@ namespace transaction {
     class Request {
     private:
         std::vector<Query> _queries;
+        std::queue<Query> _queries_queue;
         Peer _peer;
         std::queue<unsigned char> _cliend_queue;
 //        std::string _raw_request;

@@ -133,16 +133,18 @@ namespace transaction {
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
             auto client_queue = req.client_queue();
             auto query_queue = req.queryQueue();
+            std::cout << "query size : " << query_queue.size() << std::endl;
             // commmand_completeメッセージのための行数
             int num_rows = 0;
             while (!client_queue.empty()) {  // キューが空になるまでループ
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
-                std::cout << "client message :" << client_message << std::endl;
-                std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
+                std::cout << "now processing client message :" << client_message << std::endl;
 
-                std::cout << "test " << query_queue.front().query().data() << std::endl;
+                if (!query_queue.empty()) {
+                    std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
+                }
 
                 switch (client_message) {
                     case 'P':
@@ -726,11 +728,11 @@ namespace transaction {
             while (!q.empty()) {
                 unsigned char val = q.front();
 //                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
-                std::cout << val << " " << std::endl;
-
+                std::cout << val << " " ;
                 q.pop();
                 tempQueue.push(val);
             }
+            std::cout << std::endl;
 
             // Restore the original queue
             while (!tempQueue.empty()) {

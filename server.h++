@@ -224,6 +224,10 @@ namespace tcp_proxy {
                 clientQueue.push('P');
                 index++;
                 processParseMessage(index, bytes_transferred, clientQueue, queries);
+            } else if (downstream_data_[index] == 'B') {
+                clientQueue.push('B');
+                index++;
+                processBindMessage(index, bytes_transferred, clientQueue, query, queries);
             }
         };
 
