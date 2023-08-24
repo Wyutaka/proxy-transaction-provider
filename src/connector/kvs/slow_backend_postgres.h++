@@ -122,6 +122,69 @@ namespace transaction {
             PQclear(res);
         }
 
+        // query = req.query().query().data()
+        // client_queueの先頭をひとつづつ読み込む
+        // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
+        // client_messageがBの時,create_bind_complete_message(std::vector<unsigned char> &response_buffer)を実行
+        // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
+        // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
+        // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
+        void process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
+                                    sqlite3 *in_mem_db, PGconn &conn, Request req) {
+            // commmand_completeメッセージのための行数
+            int num_rows = 0;
+            while (!client_queue.empty()) {  // キューが空になるまでループ
+                unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
+                client_queue.pop(); // 読み取ったメッセージをキューから削除
+
+                std::cout << "client message :" << client_message << std::endl;
+
+                switch (client_message) {
+                    case 'P':
+                        create_parse_complete_message(response_buffer);
+                        break;
+                    case 'B':
+                        create_bind_complete_message(response_buffer);
+                        std::cout << "queue.front() : "<< client_queue.front() << std::endl;
+
+                        // Dメッセージを送らなかった時のSelectメッセージの対処
+                        if (req.query().isSelect() && client_queue.front() != 'D') {
+                            // 次が'D'じゃない時,DataRowだけ返す
+//                            std::cout << "get B with select query so create T D message" << std::endl;
+                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, req);
+                        }
+                        break;
+                    case 'D':
+                        if (req.query().query().empty()) {
+                            create_no_data_message(response_buffer);
+                        } else {
+//                            std::cout << "tes D Q" << std::endl;
+                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
+                        }
+                        break;
+                    case 'E':
+//                        std::cout << "num rows process client :" << num_rows << std::endl;
+                        create_command_complete_message(response_buffer, req, num_rows);
+                        num_rows = 0;
+                        break;
+                    case 'S':
+                        create_ready_for_query_message(response_buffer);
+                        break;
+                    case 'Q':
+                        create_row_description_message(in_mem_db, response_buffer, conn, req);
+                        // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
+                        client_queue.push('E');
+                        client_queue.push('S');
+                    default:
+                        // 何もしないか、エラーメッセージを生成するなどの処理
+                        break;
+                }
+
+                // response_bufferを何らかの方法で送信するか、他の処理を行う
+            }
+        }
+
+
         // Parseメッセージに対するレスポンスParseComplete
         // 識別子: 1
         void create_parse_complete_message(std::vector<unsigned char> &response_buffer) {
@@ -141,35 +204,6 @@ namespace transaction {
         void create_no_data_message(std::vector<unsigned char> &response_buffer) {
             unsigned char message[] = {0x6e, 0x00, 0x00, 0x00, 0x04};
             response_buffer.insert(response_buffer.end(), std::begin(message), std::end(message));
-        }
-
-        template<typename T>
-        std::vector<unsigned char> toBigEndian(T value) {
-            std::vector<unsigned char> bytes(sizeof(T));
-            for (size_t i = 0; i < sizeof(T); ++i) {
-                bytes[sizeof(T) - 1 - i] = (value >> (i * 8)) & 0xFF;
-            }
-            return bytes;
-        }
-
-        std::vector<unsigned char> intToBigEndian(int32_t value) {
-            std::vector<unsigned char> bytes(4);
-
-            bytes[0] = (value >> 24) & 0xFF;
-            bytes[1] = (value >> 16) & 0xFF;
-            bytes[2] = (value >> 8) & 0xFF;
-            bytes[3] = value & 0xFF;
-
-            return bytes;
-        }
-
-        std::vector<unsigned char> intToBigEndian(int16_t value) {
-            std::vector<unsigned char> bytes(2);
-
-            bytes[0] = (value >> 8) & 0xFF;
-            bytes[1] = value & 0xFF;
-
-            return bytes;
         }
 
         // RowDescriptionメッセージに対するレスポンスRowDescription
@@ -286,6 +320,8 @@ namespace transaction {
                         addRowDataToBuffer(pg_res, row, num_field, response_buffer);
                     }
 //                    PQclear(pg_res);
+
+                    // TODO 結果をsqliteに保存
                 }
 //                PQfinish(&conn);
             }
@@ -294,6 +330,35 @@ namespace transaction {
             return num_rows;
 //            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
+        }
+
+        template<typename T>
+        std::vector<unsigned char> toBigEndian(T value) {
+            std::vector<unsigned char> bytes(sizeof(T));
+            for (size_t i = 0; i < sizeof(T); ++i) {
+                bytes[sizeof(T) - 1 - i] = (value >> (i * 8)) & 0xFF;
+            }
+            return bytes;
+        }
+
+        std::vector<unsigned char> intToBigEndian(int32_t value) {
+            std::vector<unsigned char> bytes(4);
+
+            bytes[0] = (value >> 24) & 0xFF;
+            bytes[1] = (value >> 16) & 0xFF;
+            bytes[2] = (value >> 8) & 0xFF;
+            bytes[3] = value & 0xFF;
+
+            return bytes;
+        }
+
+        std::vector<unsigned char> intToBigEndian(int16_t value) {
+            std::vector<unsigned char> bytes(2);
+
+            bytes[0] = (value >> 8) & 0xFF;
+            bytes[1] = value & 0xFF;
+
+            return bytes;
         }
 
         void addRowDataToBuffer(sqlite3_stmt *stmt, int num_field, std::vector<unsigned char> &response_buffer) {
@@ -637,70 +702,6 @@ namespace transaction {
             }, result_record_variant);
         }
 
-        // query = req.query().query().data()
-        // client_queueの先頭をひとつづつ読み込む
-        // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
-        // client_messageがBの時,create_bind_complete_message(std::vector<unsigned char> &response_buffer)を実行
-        // client_messageがDかつqueryが空の時, create_no_data_message(std::vector<unsigned char> &response_buffer)を、client_messageがDの時、create_row_desription_message(sqlite3 *in_mem_db, std::vector<unsigned char> &response_buffer, PGconn &conn,Request &req)を実行
-        // client_messageがEの時、create_command_complete_message(std::vector<unsigned char> &response_buffer, Request &req)を実行
-        // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
-        void process_client_message(std::vector<unsigned char> &response_buffer, std::queue<unsigned char> client_queue,
-                                    sqlite3 *in_mem_db, PGconn &conn, Request req) {
-            // commmand_completeメッセージのための行数
-            int num_rows = 0;
-            while (!client_queue.empty()) {  // キューが空になるまでループ
-                unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
-                client_queue.pop(); // 読み取ったメッセージをキューから削除
-
-                switch (client_message) {
-                    case 'P':
-                        create_parse_complete_message(response_buffer);
-                        break;
-                    case 'B':
-                        create_bind_complete_message(response_buffer);
-
-                        if (req.query().isSelect() && client_queue.front() != 'D') {
-                            // 次が'D'じゃない時,DataRowだけ返す
-                            std::cout << "get B with select query so create T D message" << std::endl;
-                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, req);
-                        }
-//                        if (req.query().query().empty()) {
-//                            create_no_data_message(response_buffer);
-//                        } else {
-//                            std::cout << "tes D Q" << std::endl;
-//                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
-//                        }
-                        break;
-                    case 'D':
-                        if (req.query().query().empty()) {
-                            create_no_data_message(response_buffer);
-                        } else {
-                            std::cout << "tes D Q" << std::endl;
-                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, req);
-                        }
-                        break;
-                    case 'E':
-                        std::cout << "num rows process client :" << num_rows << std::endl;
-                        create_command_complete_message(response_buffer, req, num_rows);
-                        num_rows = 0;
-                        break;
-                    case 'S':
-                        create_ready_for_query_message(response_buffer);
-                        break;
-                    case 'Q':
-                        create_row_description_message(in_mem_db, response_buffer, conn, req);
-                        // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
-                        client_queue.push('E');
-                        client_queue.push('S');
-                    default:
-                        // 何もしないか、エラーメッセージを生成するなどの処理
-                        break;
-                }
-
-                // response_bufferを何らかの方法で送信するか、他の処理を行う
-            }
-        }
-
         void printQueue(std::queue<unsigned char> &q) {
             std::queue<unsigned char> tempQueue;
 
@@ -708,7 +709,8 @@ namespace transaction {
 
             while (!q.empty()) {
                 unsigned char val = q.front();
-                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
+//                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
+                std::cout << val << " " << std::endl;
 
                 q.pop();
                 tempQueue.push(val);

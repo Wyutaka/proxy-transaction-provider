@@ -701,17 +701,17 @@ namespace tcp_proxy {
 
         std::string query = extractString(downstream_data_, index);
 
-        // 初期化とか設定のクエリはスキップ
-        if (should_skip_query(query)) {
-            std::cout << "skip query: " << query << std::endl;
-
-            async_write(upstream_socket_,
-                        boost::asio::buffer(downstream_data_, bytes_transferred),
-                        boost::bind(&bridge::handle_upstream_write,
-                                    shared_from_this(),
-                                    boost::asio::placeholders::error));
-            return;
-        }
+//        // 初期化とか設定のクエリはスキップ
+//        if (should_skip_query(query)) {
+//            std::cout << "skip query: " << query << std::endl;
+//
+//            async_write(upstream_socket_,
+//                        boost::asio::buffer(downstream_data_, bytes_transferred),
+//                        boost::bind(&bridge::handle_upstream_write,
+//                                    shared_from_this(),
+//                                    boost::asio::placeholders::error));
+//            return;
+//        }
 
         std::cout << "parse query: " << query << std::endl;
 
