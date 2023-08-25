@@ -94,10 +94,10 @@ namespace tcp_proxy {
         ) {
             size_t first_index = index;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
-            std::cout << "parse message_size : " << message_size << std::endl;
+//            std::cout << "parse message_size : " << message_size << std::endl;
 
             std::string statement_id = extractString(downstream_data_, index);
-            std::cout << "statement id : " << statement_id << std::endl;
+//            std::cout << "statement id : " << statement_id << std::endl;
 
             std::string query = extractString(downstream_data_, index);
 
@@ -114,12 +114,10 @@ namespace tcp_proxy {
 //        }
             if (!query.empty()) {
                 std::cout << "parse query: " << query << std::endl;
-                for (unsigned char byte: query) {
-                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-                }
+//                for (unsigned char byte: query) {
+//                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+//                }
             }
-
-            std::cout << "test" << std::endl;
 
             if (!statement_id.empty()) {
                 prepared_statements_lists[statement_id] = query;
@@ -235,7 +233,7 @@ namespace tcp_proxy {
         processDescribeMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
                                std::string &query, std::queue<transaction::Query> &queries,
                                std::queue<std::queue<int>> &column_format_codes) {
-            std::cout << "processDesc" << std::endl;
+//            std::cout << "processDesc" << std::endl;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
             unsigned char ps_or_s = downstream_data_[index];
@@ -329,7 +327,6 @@ namespace tcp_proxy {
         pool::ThreadPoolExecutor queue_sender;
         sqlite3 *in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
-        unsigned char transaction_state;
         static constexpr char *write_ahead_log = "/home/y-watanabe/wal.csv";
         static constexpr char *text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
         static constexpr char *text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";

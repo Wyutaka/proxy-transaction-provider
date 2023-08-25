@@ -135,16 +135,16 @@ namespace transaction {
             auto column_format_codes = req.column_format_codes();
             std::cout << "query size : " << query_queue.size() << std::endl;
             // commmand_completeメッセージのための行数
+            if (!query_queue.empty()) {
+                std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
+            }
+
             int num_rows = 0;
             while (!client_queue.empty()) {  // キューが空になるまでループ
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
                 std::cout << "now processing client message :" << client_message << std::endl;
-
-                if (!query_queue.empty()) {
-                    std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
-                }
 
                 switch (client_message) {
                     case 'P':

@@ -539,8 +539,7 @@ namespace tcp_proxy {
         const transaction::Request &req = transaction::Request(transaction::Peer(upstream_host_, upstream_port_),
                                                                queries,
                                                                clientQueue,
-                                                               column_format_codes,
-                                                               transaction_state); // n-4 00まで含める｀h
+                                                               column_format_codes); // n-4 00まで含める｀h
 
         // レスポンス生成
         // query_queue ???
