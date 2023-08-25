@@ -16,6 +16,7 @@
 #include "query.h++"
 //#include "src/reqestresponse/Request.h++"
 #include <sqlite3.h>
+#include <iomanip>
 
 
 namespace tcp_proxy {
@@ -90,11 +91,13 @@ namespace tcp_proxy {
         processParseMessage(size_t &index, const size_t &bytes_transferred, std::queue<unsigned char> &clientQueue,
                             std::queue<transaction::Query> &queryQueue,
                             std::queue<std::queue<int>> &column_format_codes
-                            ) {
+        ) {
             size_t first_index = index;
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
+            std::cout << "parse message_size : " << message_size << std::endl;
 
             std::string statement_id = extractString(downstream_data_, index);
+            std::cout << "statement id : " << statement_id << std::endl;
 
             std::string query = extractString(downstream_data_, index);
 
@@ -109,8 +112,14 @@ namespace tcp_proxy {
 //                                    boost::asio::placeholders::error));
 //            return;
 //        }
+            if (!query.empty()) {
+                std::cout << "parse query: " << query << std::endl;
+                for (unsigned char byte: query) {
+                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+                }
+            }
 
-            std::cout << "parse query: " << query << std::endl;
+            std::cout << "test" << std::endl;
 
             if (!statement_id.empty()) {
                 prepared_statements_lists[statement_id] = query;
@@ -119,13 +128,17 @@ namespace tcp_proxy {
             std::cout << "next message parse: " << downstream_data_[index] << std::endl;
 
             if (downstream_data_[index] == 'B') {
-                std::cout << "goto BIND:" << query << std::endl;
                 clientQueue.push('B');
                 index++;
                 processBindMessage(index, bytes_transferred, clientQueue, query, queryQueue, column_format_codes);
+            } else if (downstream_data_[index] == 'D') {
+                clientQueue.push('D');
+                index++;
+                processDescribeMessage(index, bytes_transferred, clientQueue, query, queryQueue, column_format_codes);
             } else {
                 index = 0;
             }
+            // TODO Descの実装？？？ ほんとにP->Dがあるのか確認
         };
 
 
@@ -138,7 +151,9 @@ namespace tcp_proxy {
 
             uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
+            // portal
             index += 1;
+
             std::string statement_id = extractString(downstream_data_, index);
 
 //        std::string query;
@@ -155,22 +170,21 @@ namespace tcp_proxy {
                 type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
             }
 
-            index += 2; // parameter value の先頭2バイトをスキップ
+            std::cout << "num parameters : " << num_parameters << std::endl;
+
+            index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
             std::vector<std::string> datas;
             for (uint16_t i = 0; i < num_parameters; ++i) {
-                uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
+//                uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
                 if (type_parameters[i] == 0) {
                     // Text format
                     std::string value = extractString(downstream_data_, index);
-                    datas.emplace_back(value); // インデックスの更新
-
-
-                    index += data_size;
+                    datas.emplace_back(value);
+                    // インデックスの更新
+//                    index += data_size;
                 } else if (type_parameters[i] == 1) {
-                    // Binary format - for simplicity, we're assuming it's a 4-byte integer.
-                    // A real proxy should handle all binary types properly.
                     uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
-
+                    std::cout << "value is : " << value << std::endl;
                     datas.push_back(std::to_string(value));
                 }
             }
@@ -229,9 +243,15 @@ namespace tcp_proxy {
 
             std::string ps_or_portal_name = extractString(downstream_data_, index);
 
+            std::cout << "next message desc: " << downstream_data_[index] << std::endl;
             if (downstream_data_[index] == 'E') {
                 clientQueue.push('E');
+                index++;
                 processExecuteMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
+            } else if (downstream_data_[index] == 'B') {
+                clientQueue.push('B');
+                index++;
+                processBindMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
             }
         }
 
@@ -259,6 +279,10 @@ namespace tcp_proxy {
                 clientQueue.push('B');
                 index++;
                 processBindMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
+            } else if (downstream_data_[index] == 'D') {
+                clientQueue.push('D');
+                index++;
+                processDescribeMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
             }
         };
 
@@ -305,6 +329,7 @@ namespace tcp_proxy {
         pool::ThreadPoolExecutor queue_sender;
         sqlite3 *in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
+        unsigned char transaction_state;
         static constexpr char *write_ahead_log = "/home/y-watanabe/wal.csv";
         static constexpr char *text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
         static constexpr char *text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";

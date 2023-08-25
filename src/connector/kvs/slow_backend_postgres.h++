@@ -56,7 +56,6 @@ namespace transaction {
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(&conn));
                 PQclear(res);
-                std::cout << "test" << std::endl;
 //                exit_nicely(conn);
             }
 
@@ -156,11 +155,12 @@ namespace transaction {
                         std::cout << "queue.front() : "<< client_queue.front() << std::endl;
 
                         // Dメッセージを送らなかった時のSelectメッセージの対処
-                        if (req.query().isSelect() && client_queue.front() != 'D') {
+                        if (query_queue.front().isSelect() && client_queue.front() != 'D') {
                             // 次が'D'じゃない時,DataRowだけ返す
 //                            std::cout << "get B with select query so create T D message" << std::endl;
                             num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
                         }
+
                         break;
                     case 'D':
                         if (query_queue.front().query().empty()) {
@@ -176,7 +176,6 @@ namespace transaction {
                         num_rows = 0;
                         break;
                     case 'S':
-                        std::cout << "test in S "<< std::endl;
                         create_ready_for_query_message(response_buffer);
                         break;
                     case 'Q':
@@ -225,6 +224,15 @@ namespace transaction {
                                        std::queue<Query> &query_queue,
                                        std::queue<std::queue<int>> &column_format_codes) {
             std::cout << "create_row_desc_message" << std::endl;
+
+            // TODO DescにクエリがInsertまたはUpdateの時はnを返すようにしておく
+            if (!query_queue.front().isSelect()) {
+                std::cout << "create no data for D " << std::endl;
+                create_no_data_message(response_buffer);
+
+                return 1;
+            }
+
             // Tの追加
             response_buffer.push_back('T');
 
@@ -339,7 +347,7 @@ namespace transaction {
 //                PQfinish(&conn);
             }
 
-            std::cout << "num_row in row description :" << num_rows << std::endl;
+//            std::cout << "num_row in row description :" << num_rows << std::endl;
             return num_rows;
 //            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
@@ -430,8 +438,8 @@ namespace transaction {
                 column_format_code.pop();
             }
 
-            std::cout << "num_field:" << num_field << std::endl;
-            std::cout << "message_size:" << message_size << std::endl;
+//            std::cout << "num_field:" << num_field << std::endl;
+//            std::cout << "message_size:" << message_size << std::endl;
 
             // メッセージサイズの挿入
             auto message_size_bytes = intToBigEndian(message_size);
@@ -439,7 +447,7 @@ namespace transaction {
                                    message_size_bytes.end());
         }
 
-        void initializeBuffer(int num_field, std::vector<unsigned char> &response_buffer, int &message_size, size_t &last_index_D) {
+        static void initializeBuffer(int num_field, std::vector<unsigned char> &response_buffer, int &message_size, size_t &last_index_D) {
             response_buffer.push_back('D');
             message_size = 4 + 2;  // 4 for initial size and 2 for field count
             last_index_D = response_buffer.size();
@@ -469,15 +477,14 @@ namespace transaction {
                                int format_code) {
             message_size += 4;
 
-            std::cout << "column_data" << column_data << std::endl;
-            std::cout << "column_length" << column_length << std::endl;
+//            std::cout << "column_data" << column_data << std::endl;
+//            std::cout << "column_length" << column_length << std::endl;
 
             // int以外
             if (column_type == SQLITE_TEXT || column_type != 23 || format_code == 0) {
                 auto column_length_bytes = intToBigEndian(column_length);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
-                std::cout << "value in text" << std::endl;
                 response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
                 message_size += column_length;
 
@@ -544,7 +551,7 @@ namespace transaction {
                 }
 //                PQfinish(&conn);
             }
-            std::cout << "num_row in row data :" << num_rows << std::endl;
+//            std::cout << "num_row in row data :" << num_rows << std::endl;
             return num_rows;
 //            sqlite3_finalize(stmt);
 //            sqlite3_close(sqlite_db);
@@ -578,11 +585,14 @@ namespace transaction {
             std::string query_str_lower = to_lowercase(query.query().data());  // Simplified for example
 
             if (query_str_lower.find("insert") != std::string::npos) {
-                command_tag = "INSERT 0 " + std::to_string(num_rows);
+                // 決め打ちinsertが二回ある場合は詰む
+                command_tag = "INSERT 0 1";
             } else if (query_str_lower.find("delete") != std::string::npos) {
                 command_tag = "DELETE " + std::to_string(num_rows);
             } else if (query_str_lower.find("update") != std::string::npos) {
-                command_tag = "UPDATE " + std::to_string(num_rows);
+//                command_tag = "UPDATE " + std::to_string(num_rows);
+                // 決め打ちupdatetが二回ある場合は詰む
+                command_tag = "UPDATE 1";
             } else if (query_str_lower.find("select") != std::string::npos) {
                 command_tag = "SELECT " + std::to_string(num_rows);
             } else if (query_str_lower.find("move") != std::string::npos) {
@@ -601,7 +611,7 @@ namespace transaction {
             message_size_C += command_tag.size() + 1;
 //            std::cout << "C message size:" << std::to_string(message_size_C) << std::endl;
             std::cout << "num_rows" << num_rows << std::endl;
-            std::cout << "command_tag" << command_tag << std::endl;
+            std::cout << "command_tag " << command_tag << std::endl;
 
             auto message_size_bytes = intToBigEndian(message_size_C);
 
@@ -822,11 +832,11 @@ namespace transaction {
             std::cout << "initialize response" << std::endl;
             auto res = Response({CoResponse(Status::Ok)});
 
-            std::cout << "response_buf_size:" << response_buffer.size() << std::endl;
+//            std::cout << "response_buf_size:" << response_buffer.size() << std::endl;
 
-            for (unsigned char byte: response_buffer) {
-                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-            }
+//            for (unsigned char byte: response_buffer) {
+//                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+//            }
 
             res.back().set_raw_response(response_buffer);
 
