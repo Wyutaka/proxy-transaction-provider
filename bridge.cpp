@@ -27,11 +27,22 @@
             cass_##type##_free(t);                                                                 \
     })
 
+//int callback(void *notUsed, int argc, char **argv, char **azColName) {
+//    for (int i = 0; i < argc; i++) {
+//        std::cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << std::endl;
+//    }
+//    std::cout << std::endl;
+//    return 0;
+//}
+
 namespace tcp_proxy {
     typedef ip::tcp::socket socket_type;
     typedef boost::shared_ptr<bridge> ptr_type;
 
-    bridge::bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host)
+    bridge::bridge(boost::asio::io_service &ios,
+                   unsigned short upstream_port,
+                   std::string upstream_host,
+                   sqlite3*& in_mem_db)
             : downstream_socket_(ios),
               upstream_socket_(ios),
               upstream_host_(upstream_host),
@@ -39,7 +50,8 @@ namespace tcp_proxy {
               _connectFuture(NULL),
               _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
               _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
-              queue_sender(pool::ThreadPoolExecutor(1)) {
+              queue_sender(pool::ThreadPoolExecutor(1)),
+              _in_mem_db(in_mem_db) {
 
         // postgresのコネクション
         _conn = PQconnectdb(backend_postgres_conninfo);
@@ -50,193 +62,27 @@ namespace tcp_proxy {
             exit_nicely(_conn);
         }
 
-//        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
-        bridge::initializeSQLite();
-//        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
-    }
-
-    // PostgreSQLデータベースへの接続の設定
-    void bridge::connectToPostgres(PGconn *_conn, const char *backend_postgres_connInfo) {
-        _conn = PQconnectdb(backend_postgres_connInfo);
-        if (PQstatus(_conn) != CONNECTION_OK) {
-            fprintf(stderr, "Connection to database failed: %s",
-                    PQerrorMessage(_conn));
-            exit_nicely(_conn);
-        }
-    }
-
-    // SQLiteのインメモリデータベースの初期化
-    void bridge::initializeSQLite() {
-        sqlite3 *in_mem_db;
-        int ret = sqlite3_open(":memory:", &in_mem_db);
-        if (ret != SQLITE_OK) {
-            std::cout << "FILE OPEN Error";
-            close_and_reset();
-        }
-
-        ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_OORDER,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_DISTRICT,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_ITEM,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_WAREHOUSE,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_CUSTOMER,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_ORDER_LINE,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_NEW_ORDER,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_STOCK,
-                           NULL, NULL, NULL);
-        ret = sqlite3_exec(in_mem_db, text_create_HISTORY,
-                           NULL, NULL, NULL);
-
-        if (ret != SQLITE_OK) {
-            printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-        }
-    }
-
-    // PostgreSQLデータベースからデータを取得して、それをSQLiteデータベースに保存する
-    void bridge::fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl) {
-        int nFields;
-        PGresult *res;
-        /* トランザクションブロックを開始する。 */
-        res = PQexec(_conn, "BEGIN");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(_conn));
-            PQclear(res);
-            exit_nicely(_conn);
-        }
-
-        PQclear(res);
-
-        /*
-         * データベースのシステムカタログpg_databaseから行を取り出す。
-         */
-        std::string get_cursor_query = "DECLARE myportal CURSOR FOR ";
-        res = PQexec(_conn, (get_cursor_query + text_download_tbl).c_str()); // TODO クエリの反映
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(_conn));
-            PQclear(res);
-//            exit_nicely(_conn);
-        }
-        PQclear(res);
-
-        res = PQexec(_conn, "FETCH ALL in myportal");
-        if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-            fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(_conn));
-//            PQclear(res);
-//            exit_nicely(_conn);
-        }
-
-        nFields = PQnfields(res);
-
-        std::cout << "nFIelds:" << nFields << std::endl;
-        std::cout << "PQntuples:" << PQntuples(res) << std::endl;
-        /* 行を結果に追加。 */
-        int row_count = PQntuples(res);
-//        for (i = 0; i < row_count; i++) { // 50%
-//            ret = sqlite3_exec(in_mem_db,
-//                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
-//                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
-//                                PQgetvalue(res, i, 3)).str().c_str(),
-//                               NULL, NULL, NULL);
-//            if (ret != SQLITE_OK) {
-//                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-//                break;
-//            }
+//        const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
+//        char *zErrMsg = 0;
+//        int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
+//        if (rc != SQLITE_OK) {
+//            std::cerr << "error code : " << rc << std::endl;
+//            std::cerr << "SQL error: " << zErrMsg << std::endl;
+//            sqlite3_free(zErrMsg);
+//        } else {
+//            std::cout << "Operation done successfully" << std::endl;
 //        }
 
-        std::cout << "sbtest1 cached" << std::endl;
-        PQclear(res);
-
-        /* ポータルを閉ざす。ここではエラーチェックは省略した… */
-        res = PQexec(_conn, "CLOSE myportal");
-        PQclear(res);
-
-        /* トランザクションを終了する */
-        res = PQexec(_conn, "END");
-        PQclear(res);
-
-        // 省略: FETCH, データの処理と挿入, トランザクションの終了など
-    }
-
-    void download_result(PGconn &conn, const transaction::Request &req, sqlite3 *in_mem_db) {
-        int ret = sqlite3_open(":memory:", &in_mem_db);
-        if (ret != SQLITE_OK) {
-            std::cout << "FILE OPEN Error";
-//            close_and_reset();
-        }
-        int nFields;
-        int i, j;
-        PGresult *res;
-        /* トランザクションブロックを開始する。 */
-        res = PQexec(&conn, "BEGIN");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(&conn));
-            PQclear(res);
-//            exit_nicely(_conn);
-        }
-
-        PQclear(res);
-
-        /*
-         * データベースのシステムカタログpg_databaseから行を取り出す。
-         */
-        std::string get_cursor_query = "DECLARE myportal CURSOR FOR ";
-        auto first_query = req.queries().front();
-        res = PQexec(&conn, (get_cursor_query + first_query.query().data()).c_str()); // TODO クエリの反映
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(&conn));
-            PQclear(res);
-        }
-        PQclear(res);
-
-        res = PQexec(&conn, "FETCH ALL in myportal");
-        if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-            fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(&conn));
-            PQclear(res);
-        }
-
-        nFields = PQnfields(res);
-
-        std::cout << "nFIelds:" << nFields << std::endl;
-        std::cout << "PQntuples:" << PQntuples(res) << std::endl;
-        /* 行を結果に追加。 */
-        int row_count = PQntuples(res);
-        for (i = 0; i < row_count; i++) {
-            ret = sqlite3_exec(in_mem_db,
-                               (boost::format("insert into sbtest1 values ('%1%', %2%, %3%, %4%);") %
-                                PQgetvalue(res, i, 0) % PQgetvalue(res, i, 1) % PQgetvalue(res, i, 2) %
-                                PQgetvalue(res, i, 3)).str().c_str(),
-                               NULL, NULL, NULL);
-            if (ret != SQLITE_OK) {
-                printf("ERROR(%d) %s\n", ret, sqlite3_errmsg(in_mem_db));
-                break;
-            }
-        }
-
-        std::cout << "sbtest1 cached" << std::endl;
-        PQclear(res);
-
-        /* ポータルを閉ざす。ここではエラーチェックは省略した… */
-        res = PQexec(&conn, "CLOSE myportal");
-        PQclear(res);
-
-        /* トランザクションを終了する */
-        res = PQexec(&conn, "END");
-        PQclear(res);
+        std::cout << "aaaa" << std::endl;
+        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
+//        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
     }
 
     bridge::~bridge() {
         _connectFuture.reset();
         _session.reset();
         _cluster.reset();
-        sqlite3_close(in_mem_db);
+        sqlite3_close(_in_mem_db);
         PQfinish(_conn);
     }
 
@@ -423,11 +269,12 @@ namespace tcp_proxy {
 //                std::cout << "create req " << std::endl;
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
-                        transaction::Peer(upstream_host_, upstream_port_), transaction::Query(query), clientQueue); // n-4 00まで含める｀h
+                        transaction::Peer(upstream_host_, upstream_port_), transaction::Query(query),
+                        clientQueue); // n-4 00まで含める｀h
 
 //                std::cout << "create res" << std::endl;
                 // レスポンス生成
-                const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
+                const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
 
 //                std::cout << "get_res_end" << std::endl;
                 // フロントエンドにresponse_bufferを送信
@@ -543,7 +390,7 @@ namespace tcp_proxy {
 
         // レスポンス生成
         // query_queue ???
-        const auto &res = lock(req, write_ahead_log, query_queue, in_mem_db);
+        const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
 
         // write backend (返却用バッファに追加)
 
@@ -552,7 +399,7 @@ namespace tcp_proxy {
         std::cout << "next message processSync: 0x"
                   << std::hex << std::setw(2) << std::setfill('0')
                   << static_cast<int>(downstream_data_[index] & 0xFF)
-                  << std::dec << " (" << downstream_data_[index] << ")"  << std::endl;
+                  << std::dec << " (" << downstream_data_[index] << ")" << std::endl;
 
 //        if (downstream_data_[index] == 'P') {
 //            clientQueue.push('P');
@@ -572,23 +419,23 @@ namespace tcp_proxy {
 //            processExecuteMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
 //        }
 //        else {
-            std::cout << "write to backend" << std::endl;
+        std::cout << "write to backend" << std::endl;
 
-            auto response_buffer = res.back().get_raw_response();
+        auto response_buffer = res.back().get_raw_response();
 
-            async_write(downstream_socket_,
-                        boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
-                        boost::bind(&bridge::handle_downstream_write,
-                                    shared_from_this(),
-                                    boost::asio::placeholders::error));
-
-            // フロントエンドからの読み込みを開始
-            downstream_socket_.async_read_some(
-                    boost::asio::buffer(downstream_data_, max_data_length),
-                    boost::bind(&bridge::handle_downstream_read,
+        async_write(downstream_socket_,
+                    boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
+                    boost::bind(&bridge::handle_downstream_write,
                                 shared_from_this(),
-                                boost::asio::placeholders::error,
-                                boost::asio::placeholders::bytes_transferred));
+                                boost::asio::placeholders::error));
+
+        // フロントエンドからの読み込みを開始
+        downstream_socket_.async_read_some(
+                boost::asio::buffer(downstream_data_, max_data_length),
+                boost::bind(&bridge::handle_downstream_read,
+                            shared_from_this(),
+                            boost::asio::placeholders::error,
+                            boost::asio::placeholders::bytes_transferred));
 //        }
     }
 

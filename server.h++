@@ -26,7 +26,7 @@ namespace tcp_proxy {
         typedef ip::tcp::socket socket_type;
         typedef boost::shared_ptr<bridge> ptr_type;
     public:
-        explicit bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host);
+        explicit bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host, sqlite3*& in_mem_db);
 
         ~bridge();
 
@@ -56,6 +56,7 @@ namespace tcp_proxy {
         socket_type upstream_socket_;
 
     private:
+
         void handle_upstream_read(const boost::system::error_code &error, const size_t &bytes_transferred);
 
         void handle_downstream_write(const boost::system::error_code &error);
@@ -63,11 +64,68 @@ namespace tcp_proxy {
         void handle_downstream_write_proxy(const boost::system::error_code &error);
 
 //        void download_result(PGconn &conn, const transaction::Request &req, sqlite3 *in_mem_db);
-        void connectToPostgres(PGconn *_conn, const char *backend_postgres_connInfo);
+        static void
+        exit_nicely(PGconn *conn) {
+            PQfinish(conn);
+            exit(1);
+        }
 
-        void initializeSQLite();
+        void connectToPostgres(PGconn *_conn, const char *backend_postgres_connInfo) {
+            _conn = PQconnectdb(backend_postgres_connInfo);
+            if (PQstatus(_conn) != CONNECTION_OK) {
+                fprintf(stderr, "Connection to database failed: %s",
+                        PQerrorMessage(_conn));
+                exit_nicely(_conn);
+            }
+        };
 
-        void fetchAndCacheData(PGconn *_conn, sqlite3 *in_mem_db, const char *text_download_tbl);
+        // Execute SQL against SQLite
+        bool executeSQLite(sqlite3 *db, const char *sql) {
+            char *errMsg = nullptr;
+            if (sqlite3_exec(db, sql, 0, 0, &errMsg) != SQLITE_OK) {
+                std::cerr << "SQLite error: " << errMsg << std::endl;
+                sqlite3_free(errMsg);
+                return false;
+            }
+            return true;
+        }
+
+// Insert data from a PostgreSQL query result into an SQLite table
+        bool insertDataFromResult(PGconn *_conn, sqlite3 *in_mem_db, PGresult *res, const char* tableName) {
+            int nFields = PQnfields(res);
+            for (int i = 0; i < PQntuples(res); i++) {
+                std::string insertQuery = "INSERT OR REPLACE INTO " + std::string(tableName) + " VALUES(";
+                for (int j = 0; j < nFields; j++) {
+                    if (j > 0) {
+                        insertQuery += ",";
+                    }
+                    insertQuery += "'" + std::string(PQgetvalue(res, i, j)) + "'";
+                }
+                insertQuery += ");";
+
+                if (!executeSQLite(in_mem_db, insertQuery.c_str())) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+// Fetch data from PostgreSQL and insert into SQLite
+        bool migrateTableData(PGconn *_conn, sqlite3 *in_mem_db, const char* tableName) {
+            std::string query = "SELECT * FROM " + std::string(tableName);
+            PGresult *res = PQexec(_conn, query.c_str());
+
+            if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+                std::cerr << "Failed to fetch data from PostgreSQL for table: " << PQerrorMessage(_conn) << std::endl;
+                PQclear(res);
+                return false;
+            }
+
+            bool success = insertDataFromResult(_conn, in_mem_db, res, tableName);
+
+            PQclear(res);
+            return success;
+        }
 
         std::string replacePlaceholders(const std::string &query, const std::vector<std::string> &params);
 
@@ -136,7 +194,6 @@ namespace tcp_proxy {
             } else {
                 index = 0;
             }
-            // TODO Descの実装？？？ ほんとにP->Dがあるのか確認
         };
 
 
@@ -166,14 +223,17 @@ namespace tcp_proxy {
 
             for (uint16_t i = 0; i < num_parameters; ++i) {
                 type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
+                std::cout << "type_parameter : " << type_parameters[i] << std::endl;
             }
 
             std::cout << "num parameters : " << num_parameters << std::endl;
 
             index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
+
             std::vector<std::string> datas;
             for (uint16_t i = 0; i < num_parameters; ++i) {
-//                uint32_t data_size = extractBigEndian4Bytes(downstream_data_, index);
+                // kimoi
+                uint32_t column_length = extractBigEndian4Bytes(downstream_data_, index);
                 if (type_parameters[i] == 0) {
                     // Text format
                     std::string value = extractString(downstream_data_, index);
@@ -182,7 +242,7 @@ namespace tcp_proxy {
 //                    index += data_size;
                 } else if (type_parameters[i] == 1) {
                     uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
-                    std::cout << "value is : " << value << std::endl;
+                    std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
                     datas.push_back(std::to_string(value));
                 }
             }
@@ -206,10 +266,19 @@ namespace tcp_proxy {
             std::queue<int> column_format_code;
 
             // results_formatsの2バイトをintに変換し、int results_formatsに格納する
-            int num_result_formats = extractBigEndian2Bytes(downstream_data_, index);
+            std::cout << "num_result_format_bytes[0]" << std::hex << std::setw(2) << std::setfill('0')
+                                                         << static_cast<int>(downstream_data_[index])
+                                                         << std::endl;
+            std::cout << "num_result_format_bytes[1]" << std::hex << std::setw(2) << std::setfill('0')
+                      << static_cast<int>(downstream_data_[index + 1])
+                      << std::endl;
+
+            uint16_t num_result_formats = extractBigEndian2Bytes(downstream_data_, index);
+
             std::cout << "num_result_format : " << num_result_formats << std::endl;
             for (int i = 0; i < num_result_formats; ++i) {
-                int format_code = extractBigEndian2Bytes(downstream_data_, index);
+                uint16_t format_code = extractBigEndian2Bytes(downstream_data_, index);
+                std::cout << "format_code : " << format_code << std::endl;
                 column_format_code.push(format_code);
             }
 
@@ -325,139 +394,26 @@ namespace tcp_proxy {
         std::queue<std::string> query_queue;
         std::mutex queue_mtx;
         pool::ThreadPoolExecutor queue_sender;
-        sqlite3 *in_mem_db;
+        sqlite3 *_in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
         static constexpr char *write_ahead_log = "/home/y-watanabe/wal.csv";
         static constexpr char *text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
         static constexpr char *text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";
         static constexpr char *text_download_sbtest1 = "select * from sbtest1";
 
-        static constexpr char *text_create_OORDER = "CREATE TABLE OORDER ( \n"
-                                                    "o_w_id int NOT NULL,\n"
-                                                    "o_d_id int NOT NULL,\n"
-                                                    "o_id int NOT NULL,\n"
-                                                    "o_c_id int NOT NULL,\n"
-                                                    "o_carrier_id int DEFAULT NULL,\n"
-                                                    "o_ol_cnt decimal(2,0) NOT NULL,\n"
-                                                    "o_all_local decimal(1,0) NOT NULL,\n"
-                                                    "o_entry_d timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-                                                    " PRIMARY KEY ((o_w_id,o_d_id) HASH,o_id)\n"
-                                                    ")";
-        static constexpr char *text_create_DISTRICT = "CREATE TABLE DISTRICT ( \n"
-                                                      "d_w_id int NOT NULL,\n"
-                                                      "d_id int NOT NULL,\n"
-                                                      "d_ytd decimal(12,2) NOT NULL,\n"
-                                                      "d_tax decimal(4,4) NOT NULL,\n"
-                                                      "d_next_o_id int NOT NULL,\n"
-                                                      "d_name varchar(10) NOT NULL,\n"
-                                                      "d_street_1 varchar(20) NOT NULL,\n"
-                                                      "d_street_2 varchar(20) NOT NULL,\n"
-                                                      "d_city varchar(20) NOT NULL,\n"
-                                                      "d_state char(2) NOT NULL,\n"
-                                                      "d_zip char(9) NOT NULL,\n"
-                                                      " PRIMARY KEY ((d_w_id,d_id) HASH)\n"
-                                                      ")";
-        static constexpr char *text_create_ITEM = "CREATE TABLE ITEM ( \n"
-                                                  "i_id int NOT NULL,\n"
-                                                  "i_name varchar(24) NOT NULL,\n"
-                                                  "i_price decimal(5,2) NOT NULL,\n"
-                                                  "i_data varchar(50) NOT NULL,\n"
-                                                  "i_im_id int NOT NULL,\n"
-                                                  " PRIMARY KEY (i_id)\n"
-                                                  ")";
-        static constexpr char *text_create_WAREHOUSE = "CREATE TABLE WAREHOUSE ( \n"
-                                                       "w_id int NOT NULL,\n"
-                                                       "w_ytd decimal(12,2) NOT NULL,\n"
-                                                       "w_tax decimal(4,4) NOT NULL,\n"
-                                                       "w_name varchar(10) NOT NULL,\n"
-                                                       "w_street_1 varchar(20) NOT NULL,\n"
-                                                       "w_street_2 varchar(20) NOT NULL,\n"
-                                                       "w_city varchar(20) NOT NULL,\n"
-                                                       "w_state char(2) NOT NULL,\n"
-                                                       "w_zip char(9) NOT NULL,\n"
-                                                       " PRIMARY KEY (w_id)\n"
-                                                       ")";
-        static constexpr char *text_create_CUSTOMER = "CREATE TABLE CUSTOMER ( \n"
-                                                      "c_w_id int NOT NULL,\n"
-                                                      "c_d_id int NOT NULL,\n"
-                                                      "c_id int NOT NULL,\n"
-                                                      "c_discount decimal(4,4) NOT NULL,\n"
-                                                      "c_credit char(2) NOT NULL,\n"
-                                                      "c_last varchar(16) NOT NULL,\n"
-                                                      "c_first varchar(16) NOT NULL,\n"
-                                                      "c_credit_lim decimal(12,2) NOT NULL,\n"
-                                                      "c_balance decimal(12,2) NOT NULL,\n"
-                                                      "c_ytd_payment float NOT NULL,\n"
-                                                      "c_payment_cnt int NOT NULL,\n"
-                                                      "c_delivery_cnt int NOT NULL,\n"
-                                                      "c_street_1 varchar(20) NOT NULL,\n"
-                                                      "c_street_2 varchar(20) NOT NULL,\n"
-                                                      "c_city varchar(20) NOT NULL,\n"
-                                                      "c_state char(2) NOT NULL,\n"
-                                                      "c_zip char(9) NOT NULL,\n"
-                                                      "c_phone char(16) NOT NULL,\n"
-                                                      "c_since timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-                                                      "c_middle char(2) NOT NULL,\n"
-                                                      "c_data varchar(500) NOT NULL,\n"
-                                                      " PRIMARY KEY ((c_w_id,c_d_id) HASH,c_id)\n"
-                                                      ")";
-        static constexpr char *text_create_ORDER_LINE = "CREATE TABLE ORDER_LINE ( \n"
-                                                        "ol_w_id int NOT NULL,\n"
-                                                        "ol_d_id int NOT NULL,\n"
-                                                        "ol_o_id int NOT NULL,\n"
-                                                        "ol_number int NOT NULL,\n"
-                                                        "ol_i_id int NOT NULL,\n"
-                                                        "ol_delivery_d timestamp NULL DEFAULT NULL,\n"
-                                                        "ol_amount decimal(6,2) NOT NULL,\n"
-                                                        "ol_supply_w_id int NOT NULL,\n"
-                                                        "ol_quantity decimal(2,0) NOT NULL,\n"
-                                                        "ol_dist_info char(24) NOT NULL,\n"
-                                                        " PRIMARY KEY ((ol_w_id,ol_d_id) HASH,ol_o_id,ol_number)\n"
-                                                        ")";
-        static constexpr char *text_create_NEW_ORDER = "CREATE TABLE NEW_ORDER ( \n"
-                                                       "no_w_id int NOT NULL,\n"
-                                                       "no_d_id int NOT NULL,\n"
-                                                       "no_o_id int NOT NULL,\n"
-                                                       " PRIMARY KEY ((no_w_id,no_d_id) HASH,no_o_id)\n"
-                                                       ")";
-        static constexpr char *text_create_STOCK = "CREATE TABLE STOCK ( \n"
-                                                   "s_w_id int NOT NULL,\n"
-                                                   "s_i_id int NOT NULL,\n"
-                                                   "s_quantity decimal(4,0) NOT NULL,\n"
-                                                   "s_ytd decimal(8,2) NOT NULL,\n"
-                                                   "s_order_cnt int NOT NULL,\n"
-                                                   "s_remote_cnt int NOT NULL,\n"
-                                                   "s_data varchar(50) NOT NULL,\n"
-                                                   "s_dist_01 char(24) NOT NULL,\n"
-                                                   "s_dist_02 char(24) NOT NULL,\n"
-                                                   "s_dist_03 char(24) NOT NULL,\n"
-                                                   "s_dist_04 char(24) NOT NULL,\n"
-                                                   "s_dist_05 char(24) NOT NULL,\n"
-                                                   "s_dist_06 char(24) NOT NULL,\n"
-                                                   "s_dist_07 char(24) NOT NULL,\n"
-                                                   "s_dist_08 char(24) NOT NULL,\n"
-                                                   "s_dist_09 char(24) NOT NULL,\n"
-                                                   "s_dist_10 char(24) NOT NULL,\n"
-                                                   " PRIMARY KEY (s_w_id HASH, s_i_id ASC)\n"
-                                                   ")";
-        static constexpr char *text_create_HISTORY = "CREATE TABLE HISTORY ( \n"
-                                                     "h_c_id int NOT NULL,\n"
-                                                     "h_c_d_id int NOT NULL,\n"
-                                                     "h_c_w_id int NOT NULL,\n"
-                                                     "h_d_id int NOT NULL,\n"
-                                                     "h_w_id int NOT NULL,\n"
-                                                     "h_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-                                                     "h_amount decimal(6,2) NOT NULL,\n"
-                                                     "h_data varchar(24) NOT NULL\n"
-                                                     ")";
+
 
         // inner class
     public:
         class acceptor final {
         public:
             explicit acceptor(boost::asio::io_service &io_service,
-                              const std::string &local_host, unsigned short local_port,
-                              const std::string &upstream_host, unsigned short upstream_port);
+                              const std::string &local_host,
+                              unsigned short local_port,
+                              const std::string &upstream_host,
+                              unsigned short upstream_port,
+                              sqlite3*& in_mem_db
+                              );
 
             ~acceptor();
 
@@ -472,6 +428,7 @@ namespace tcp_proxy {
             ptr_type session_;
             unsigned short upstream_port_;
             std::string upstream_host_;
+            sqlite3 *in_mem_db_;
         };
     };
 }

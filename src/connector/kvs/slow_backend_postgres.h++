@@ -244,27 +244,31 @@ namespace transaction {
             int message_size = 4;
             auto query = query_queue.front().query().data();
 
+            std::cout << "query" << query << std::endl;
+
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
             int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
             rc = sqlite3_step(stmt);
 
+            std::cout << "sqlite result : " << rc << std::endl;
+
             if (rc == SQLITE_ROW) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
-                std::cout << "from sqlite" << num_field << std::endl;
-//                auto num_field_bytes = toBigEndian(static_cast<int16_t>(num_field));
-//                response_buffer.insert(response_buffer.end(), num_field_bytes.begin(), num_field_bytes.end());
+                std::cout << "from sqlite num field : " << num_field << std::endl;
 
                 uint16_t twoBytes = static_cast<uint16_t>(num_field);
-                response_buffer.insert(response_buffer.end(), reinterpret_cast<unsigned char *>(&twoBytes),
-                                       reinterpret_cast<unsigned char *>(&twoBytes + 1));
 
                 // 上位バイト (high byte) と下位バイト (low byte) を取得
                 unsigned char highByte = (twoBytes >> 8) & 0xFF;
                 unsigned char lowByte = twoBytes & 0xFF;
 
+                response_buffer.push_back(highByte);
+                response_buffer.push_back(lowByte);
+
                 message_size += 2;
 
+                // 各フィールドにたいして
                 for (int i = 0; i < num_field; ++i) {
                     const char *field_name = sqlite3_column_name(stmt, i);
 
@@ -272,16 +276,23 @@ namespace transaction {
                     int32_t table_oid = 0;
                     int16_t column_attribute_number = 0;
                     int32_t field_data_type_oid = 0;
-                    int16_t data_type_size = 0;
+                    int16_t data_type_size = -1;
                     int32_t type_modifier = 0;
                     int16_t format_code = 0;
 
-                    add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
+                    add_row_description_to_buffer(response_buffer,
+                                                  message_size,
+                                                  field_name,
+                                                  table_oid,
                                                   column_attribute_number,
-                                                  field_data_type_oid, data_type_size, type_modifier, format_code);
+                                                  field_data_type_oid,
+                                                  data_type_size,
+                                                  type_modifier,
+                                                  format_code);
                 }
+
                 // Tの次にメッセージサイズついか
-                auto message_size_bytes = toBigEndian(message_size);
+                auto message_size_bytes = intToBigEndian(message_size);
                 response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
                                        message_size_bytes.end());
 
@@ -325,13 +336,19 @@ namespace transaction {
                         int32_t type_modifier = 0; // Placeholder, might need actual lookup
                         int16_t format_code = 0; // Placeholder, use appropriate value
 
-                        add_row_description_to_buffer(response_buffer, message_size, field_name, table_oid,
+                        add_row_description_to_buffer(response_buffer,
+                                                      message_size,
+                                                      field_name,
+                                                      table_oid,
                                                       column_attribute_number,
-                                                      field_data_type_oid, data_type_size, type_modifier, format_code);
+                                                      field_data_type_oid,
+                                                      data_type_size,
+                                                      type_modifier,
+                                                      format_code);
                     }
+
                     // Tの次にメッセージサイズついか
                     auto message_size_bytes = intToBigEndian(message_size);
-
                     response_buffer.insert(response_buffer.begin() + lastIndex, message_size_bytes.begin(),
                                            message_size_bytes.end());
 
@@ -402,12 +419,13 @@ namespace transaction {
                     one_format_code = column_format_code.front();
                 }
 
+                std::cout << "one_format_code sqlite : " << one_format_code << std::endl;
+
                 processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
                 column_format_code.pop();
             }
 
             auto message_size_bytes = intToBigEndian(message_size);
-
             response_buffer.insert(response_buffer.begin() + last_index_D, message_size_bytes.begin(),
                                    message_size_bytes.end());
         }
@@ -418,6 +436,7 @@ namespace transaction {
                                 int num_field,
                                 std::vector<unsigned char> &response_buffer,
                                 std::queue<std::queue<int>> &column_format_codes) {
+
             int message_size;
             size_t last_index_D;
             initializeBuffer(num_field, response_buffer, message_size, last_index_D);
@@ -433,6 +452,8 @@ namespace transaction {
                 if (!column_format_code.empty()) {
                     one_format_code = column_format_code.front();
                 }
+
+                std::cout << "one_format_code postgres : " << one_format_code << std::endl;
 
                 processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
                 column_format_code.pop();
@@ -471,7 +492,7 @@ namespace transaction {
 
         void processColumnData(const unsigned char* column_data,
                                int column_length,
-                               Oid column_type,
+                               int column_type,
                                std::vector<unsigned char> &response_buffer,
                                int &message_size,
                                int format_code) {
@@ -480,15 +501,18 @@ namespace transaction {
 //            std::cout << "column_data" << column_data << std::endl;
 //            std::cout << "column_length" << column_length << std::endl;
 
+            std::cout << "column_type : " << column_type << std::endl;
+            std::cout << "format_code : " << format_code << std::endl;
+
             // int以外
-            if (column_type == SQLITE_TEXT || column_type != 23 || format_code == 0) {
+            if (column_type == SQLITE_TEXT || format_code == 0) {
                 auto column_length_bytes = intToBigEndian(column_length);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
 
                 response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
                 message_size += column_length;
 
-            } else {
+            } else if (column_type == SQLITE_INTEGER || column_type == SQLITE_BLOB || column_type == 23) {
                 // int
                 auto column_length_bytes = intToBigEndian(4);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
@@ -520,22 +544,24 @@ namespace transaction {
             int num_rows = 0;
             auto query = query_queue.front().query().data();
 
+            std::cout << "column_format_code_size : " << column_format_codes.size() << std::endl;
+
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
             int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
             rc = sqlite3_step(stmt);
 
-            if (rc == SQLITE_ROW) { // Data exists in SQLite
-                int num_field = sqlite3_column_count(stmt);
-                std::cout << "from sqlite" << num_field << std::endl;
-                // Dメッセージを追加
-                while (rc == SQLITE_ROW) {
-                    num_rows++;
-                    addRowDataToBuffer(stmt, num_field, response_buffer, column_format_codes);
-                    rc = sqlite3_step(stmt);
-                }
-
-            } else {
+//            if (rc == SQLITE_ROW) { // Data exists in SQLite
+//                int num_field = sqlite3_column_count(stmt);
+//                std::cout << "from sqlite" << num_field << std::endl;
+//                // Dメッセージを追加
+//                while (rc == SQLITE_ROW) {
+//                    num_rows++;
+//                    addRowDataToBuffer(stmt, num_field, response_buffer, column_format_codes);
+//                    rc = sqlite3_step(stmt);
+//                }
+//
+//            } else {
                 // No result from SQLite, query from Postgres
                 // ... [Same as before, up to the Postgres processing]
                 PGresult *pg_res = PQexec(&conn, query);
@@ -548,7 +574,7 @@ namespace transaction {
                         addRowDataToBuffer(pg_res, row, num_field, response_buffer, column_format_codes);
                     }
 //                    PQclear(pg_res);
-                }
+//                }
 //                PQfinish(&conn);
             }
 //            std::cout << "num_row in row data :" << num_rows << std::endl;
@@ -653,6 +679,15 @@ namespace transaction {
                                            int32_t type_modifier,
                                            int16_t format_code) {
 
+
+            std::cout << "field_name :" << field_name << std::endl;
+            std::cout << "table_oid :" << table_oid << std::endl;
+            std::cout << "column_attribute_number :" << column_attribute_number << std::endl;
+            std::cout << "field_data_type_oid :" << field_data_type_oid << std::endl;
+            std::cout << "data_type_size :" << data_type_size << std::endl;
+            std::cout << "type_modifier :" << type_modifier << std::endl;
+            std::cout << "format_code :" << format_code << std::endl;
+
             response_buffer.insert(response_buffer.end(), field_name.begin(), field_name.end());
             response_buffer.push_back(0); // null terminator
             message_size += field_name.size() + 1;
@@ -696,64 +731,6 @@ namespace transaction {
             return [](std::array<std::string_view, N> columns, int count) {
                 return response::Sysbench(columns, count);
             };
-        }
-
-        /*
-         * インメモリdbから値を取得する.インメモリデータがある場合はtrueを返す.
-         * sysbenchを回すためにハードコードしてる部分がある
-         */
-        bool
-        get_from_local(sqlite3 *in_mem_db, const Request &req,
-                       std::queue<response::sysbench_result_type> &results) {
-            if (!req.query().isSelect()) { return false; }
-
-            std::unordered_map<char, std::pair<std::vector<std::string>, RecordConstructor>> result_types = {
-                    {'*', {{"id", "k", "c", "pad"}, [](const std::vector<std::string> &columns,
-                                                       int count) -> response::sysbench_result_type {
-                        return response::Sysbench({"id", "k", "c", "pad"}, count);
-                    }}},
-                    {'c', {{"c"},                   [](const std::vector<std::string> &columns,
-                                                       int count) -> response::sysbench_result_type {
-                        return response::Sysbench({"c"}, count);
-                    }}},
-                    {'D', {{"c"},                   [](const std::vector<std::string> &columns,
-                                                       int count) -> response::sysbench_result_type {
-                        return response::Sysbench({"c"}, count);
-                    }}},
-                    {'s', {{"sum"},                 [](const std::vector<std::string> &columns,
-                                                       int count) -> response::sysbench_result_type {
-                        return response::Sysbench({"sum"}, count);
-                    }}},
-                    {'S', {{"sum"},                 [](const std::vector<std::string> &columns,
-                                                       int count) -> response::sysbench_result_type {
-                        return response::Sysbench({"sum"}, count);
-                    }}},
-            };
-
-            int row_count;
-            sqlite3_stmt *statement = nullptr;
-            int prepare_rc = sqlite3_prepare_v2(in_mem_db, req.query().query().data(), -1, &statement, nullptr);
-            if (prepare_rc == SQLITE_OK) {
-                while (sqlite3_step(statement) == SQLITE_ROW) {
-                    row_count++;
-                    auto res_type_char = req.query().query()[7];
-                    int columnCount = sqlite3_column_count(statement);
-
-                    if (result_types.find(res_type_char) != result_types.end() || columnCount == 4) {
-                        auto [column_names, constructor] = result_types[res_type_char];
-                        auto result_record = constructor(column_names, columnCount);
-                        populateColumns(statement, result_record, columnCount);
-                        results.emplace(result_record);
-                    }
-
-                }
-            } else {
-                printf("ERROR(%d) %s\n", prepare_rc, sqlite3_errmsg(in_mem_db));
-            }
-            sqlite3_reset(statement);
-            sqlite3_finalize(statement);
-
-            return row_count > 0;
         }
 
         void populateColumns(sqlite3_stmt *statement, response::sysbench_result_type &result_record_variant,
@@ -801,9 +778,29 @@ namespace transaction {
         // response.set_raw_responseでresponse_bufferを代入する
         // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
 
-        Response operator()(const Request &req, sqlite3 *in_mem_db) {
+        static int callback(void *notUsed, int argc, char **argv, char **azColName) {
+            for (int i = 0; i < argc; i++) {
+                std::cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << std::endl;
+            }
+            std::cout << std::endl;
+            return 0;
+        }
+
+        Response operator()(const Request &req, sqlite3*& in_mem_db) {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
+
+        const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
+        char *zErrMsg = 0;
+        int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
+        if (rc != SQLITE_OK) {
+            std::cerr << "error code : " << rc << std::endl;
+            std::cerr << "SQL error: " << zErrMsg << std::endl;
+            sqlite3_free(zErrMsg);
+        } else {
+            std::cout << "Operation done successfully" << std::endl;
+        }
+
             std::vector<unsigned char> response_buffer;
 
             auto client_queue = req.client_queue();

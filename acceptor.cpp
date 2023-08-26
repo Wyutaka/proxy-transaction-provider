@@ -18,12 +18,13 @@
 namespace tcp_proxy {
     bridge::acceptor::acceptor(boost::asio::io_service& io_service,
     const std::string& local_host, unsigned short local_port,
-    const std::string& upstream_host, unsigned short upstream_port)
+    const std::string& upstream_host, unsigned short upstream_port, sqlite3*& in_mem_db)
     : io_service_(io_service),
     localhost_address(boost::asio::ip::address_v4::from_string(local_host)),
     acceptor_(io_service_,ip::tcp::endpoint(localhost_address,local_port)),
     upstream_port_(upstream_port),
-    upstream_host_(upstream_host)
+    upstream_host_(upstream_host),
+    in_mem_db_(in_mem_db)
     {}
 
     bridge::acceptor::~acceptor() {
@@ -34,14 +35,13 @@ namespace tcp_proxy {
     {
 
         try {
-            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_)); // bad_alloc?
+            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_, in_mem_db_)); // bad_alloc?
             acceptor_.async_accept(session_->downstream_socket_,
                                    boost::bind(&acceptor::handle_accept,
                                                this,
                                                boost::asio::placeholders::error));
 
-        } catch(std::exception& e)
-        {
+        } catch(std::exception& e) {
             std::cerr << "acceptor exception: " << e.what() << std::endl;
             return false;
         }
