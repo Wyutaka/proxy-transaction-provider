@@ -352,7 +352,8 @@ int main(int argc, char* argv[])
 
     boost::thread_group threads;
 //    for (short i = 0; i < 16; i++) {
-//        threads.create_thread([local_ports, forward_port, local_host, forward_hosts, i] { return run_proxy(local_ports[0] + i, forward_port, local_host, forward_hosts[i % 10]); });
+//        threads.create_thread([local_ports, forward_port, local_host, forward_hosts, i] {
+//            return run_proxy(local_ports[0] + i, forward_port, local_host, forward_hosts[i % 10]); });
 //        local_port++;
 //    }
     threads.create_thread([local_ports, forward_port, local_host, forward_hosts, &in_mem_db] { return run_proxy(local_ports[0], forward_port, local_host, forward_hosts[0], in_mem_db); });

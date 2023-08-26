@@ -23,6 +23,7 @@
 #include "./src/transaction/transaction_impl.hpp"
 #include "./src/test/DumpHex.h++"
 #include <boost/thread.hpp>
+#include "../../transaction/result.h++"
 
 static void
 exit_nicely(PGconn *conn) {
@@ -152,13 +153,14 @@ namespace transaction {
                         break;
                     case 'B':
                         create_bind_complete_message(response_buffer);
-                        std::cout << "queue.front() : "<< client_queue.front() << std::endl;
+                        std::cout << "queue.front() : " << client_queue.front() << std::endl;
 
                         // Dメッセージを送らなかった時のSelectメッセージの対処
                         if (query_queue.front().isSelect() && client_queue.front() != 'D') {
                             // 次が'D'じゃない時,DataRowだけ返す
 //                            std::cout << "get B with select query so create T D message" << std::endl;
-                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
+                            num_rows = create_row_data_message(in_mem_db, response_buffer, conn, query_queue,
+                                                               column_format_codes);
                         }
 
                         break;
@@ -167,7 +169,8 @@ namespace transaction {
                             create_no_data_message(response_buffer);
                         } else {
 //                            std::cout << "tes D Q" << std::endl;
-                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
+                            num_rows = create_row_description_message(in_mem_db, response_buffer, conn, query_queue,
+                                                                      column_format_codes);
                         }
                         break;
                     case 'E':
@@ -179,7 +182,8 @@ namespace transaction {
                         create_ready_for_query_message(response_buffer);
                         break;
                     case 'Q':
-                        create_row_description_message(in_mem_db, response_buffer, conn, query_queue, column_format_codes);
+                        create_row_description_message(in_mem_db, response_buffer, conn, query_queue,
+                                                       column_format_codes);
                         // TODO これ、Qがれんぞくしたらだめ？(dequeueで実装する)
                         client_queue.push('E');
                         client_queue.push('S');
@@ -190,7 +194,7 @@ namespace transaction {
 
                 // response_bufferを何らかの方法で送信するか、他の処理を行う
             }
-            std::cout << "end process client message" <<std::endl;
+            std::cout << "end process client message" << std::endl;
         }
 
 
@@ -230,6 +234,16 @@ namespace transaction {
                 std::cout << "create no data for D " << std::endl;
                 create_no_data_message(response_buffer);
 
+                return 1;
+            }
+
+            //関数がきた場合はカスタムクエリを返す
+            // backendに直に問い合わせるときはコメントアウトすること
+            if (query_queue.front().query().find("getstockcounts") != std::string::npos) {
+                std::cout << "you get cached!!!" << std::endl;
+                response_buffer.insert(response_buffer.begin(), response::select_from_getstock_count,
+                                       response::select_from_getstock_count +
+                                       sizeof(response::select_from_getstock_count));
                 return 1;
             }
 
@@ -421,7 +435,8 @@ namespace transaction {
 
                 std::cout << "one_format_code sqlite : " << one_format_code << std::endl;
 
-                processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size,
+                                  one_format_code);
                 column_format_code.pop();
             }
 
@@ -455,7 +470,8 @@ namespace transaction {
 
                 std::cout << "one_format_code postgres : " << one_format_code << std::endl;
 
-                processColumnData(column_data, column_length, column_type, response_buffer, message_size, one_format_code);
+                processColumnData(column_data, column_length, column_type, response_buffer, message_size,
+                                  one_format_code);
                 column_format_code.pop();
             }
 
@@ -468,7 +484,8 @@ namespace transaction {
                                    message_size_bytes.end());
         }
 
-        static void initializeBuffer(int num_field, std::vector<unsigned char> &response_buffer, int &message_size, size_t &last_index_D) {
+        static void initializeBuffer(int num_field, std::vector<unsigned char> &response_buffer, int &message_size,
+                                     size_t &last_index_D) {
             response_buffer.push_back('D');
             message_size = 4 + 2;  // 4 for initial size and 2 for field count
             last_index_D = response_buffer.size();
@@ -490,7 +507,7 @@ namespace transaction {
         }
 
 
-        void processColumnData(const unsigned char* column_data,
+        void processColumnData(const unsigned char *column_data,
                                int column_length,
                                int column_type,
                                std::vector<unsigned char> &response_buffer,
@@ -527,7 +544,8 @@ namespace transaction {
                 }
                 std::cout << std::endl;
 
-                response_buffer.insert(response_buffer.end(), binary_representation.begin(), binary_representation.end());
+                response_buffer.insert(response_buffer.end(), binary_representation.begin(),
+                                       binary_representation.end());
                 message_size += 4;
             }
         }
@@ -562,17 +580,17 @@ namespace transaction {
 //                }
 //
 //            } else {
-                // No result from SQLite, query from Postgres
-                // ... [Same as before, up to the Postgres processing]
-                PGresult *pg_res = PQexec(&conn, query);
-                if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
-                    int num_field = PQnfields(pg_res);
-                    std::cout << "from postgres" << num_field << std::endl;
-                    // Dのメッセージを追加
-                    num_rows = PQntuples(pg_res);
-                    for (int row = 0; row < num_rows; ++row) {
-                        addRowDataToBuffer(pg_res, row, num_field, response_buffer, column_format_codes);
-                    }
+            // No result from SQLite, query from Postgres
+            // ... [Same as before, up to the Postgres processing]
+            PGresult *pg_res = PQexec(&conn, query);
+            if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
+                int num_field = PQnfields(pg_res);
+                std::cout << "from postgres" << num_field << std::endl;
+                // Dのメッセージを追加
+                num_rows = PQntuples(pg_res);
+                for (int row = 0; row < num_rows; ++row) {
+                    addRowDataToBuffer(pg_res, row, num_field, response_buffer, column_format_codes);
+                }
 //                    PQclear(pg_res);
 //                }
 //                PQfinish(&conn);
@@ -584,7 +602,7 @@ namespace transaction {
         }
 
         // 小文字に変換する関数
-        std::string to_lowercase(const std::string& s) {
+        std::string to_lowercase(const std::string &s) {
             std::string result = s;
             std::transform(result.begin(), result.end(), result.begin(),
                            [](unsigned char c) { return std::tolower(c); });
@@ -758,7 +776,7 @@ namespace transaction {
             while (!q.empty()) {
                 unsigned char val = q.front();
 //                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
-                std::cout << val << " " ;
+                std::cout << val << " ";
                 q.pop();
                 tempQueue.push(val);
             }
@@ -786,20 +804,20 @@ namespace transaction {
             return 0;
         }
 
-        Response operator()(const Request &req, sqlite3*& in_mem_db) {
+        Response operator()(const Request &req, sqlite3 *&in_mem_db) {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
 
-        const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
-        char *zErrMsg = 0;
-        int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
-        if (rc != SQLITE_OK) {
-            std::cerr << "error code : " << rc << std::endl;
-            std::cerr << "SQL error: " << zErrMsg << std::endl;
-            sqlite3_free(zErrMsg);
-        } else {
-            std::cout << "Operation done successfully" << std::endl;
-        }
+            const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
+            char *zErrMsg = 0;
+            int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
+            if (rc != SQLITE_OK) {
+                std::cerr << "error code : " << rc << std::endl;
+                std::cerr << "SQL error: " << zErrMsg << std::endl;
+                sqlite3_free(zErrMsg);
+            } else {
+                std::cout << "Operation done successfully" << std::endl;
+            }
 
             std::vector<unsigned char> response_buffer;
 
