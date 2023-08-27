@@ -136,18 +136,17 @@ namespace transaction {
             auto client_queue = req.client_queue();
             auto query_queue = req.queryQueue();
             auto column_format_codes = req.column_format_codes();
-            std::cout << "query size : " << query_queue.size() << std::endl;
             // commmand_completeメッセージのための行数
-            if (!query_queue.empty()) {
-                std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
-            }
+//            if (!query_queue.empty()) {
+//                std::cout << "now processing query : " << query_queue.front().query().data() << std::endl;
+//            }
 
             int num_rows = 0;
             while (!client_queue.empty()) {  // キューが空になるまでループ
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
-                std::cout << "now processing client message :" << client_message << std::endl;
+//                std::cout << "now processing client message :" << client_message << std::endl;
 
                 switch (client_message) {
                     case 'P':
@@ -155,7 +154,7 @@ namespace transaction {
                         break;
                     case 'B':
                         create_bind_complete_message(response_buffer);
-                        std::cout << "queue.front() : " << client_queue.front() << std::endl;
+//                        std::cout << "queue.front() : " << client_queue.front() << std::endl;
 
                         // Dメッセージを送らなかった時のSelectメッセージの対処
                         if (query_queue.front().isSelect() && client_queue.front() != 'D') {
@@ -229,7 +228,7 @@ namespace transaction {
                                        PGconn &conn,
                                        std::queue<Query> &query_queue,
                                        std::queue<std::queue<int>> &column_format_codes) {
-            std::cout << "create_row_desc_message" << std::endl;
+//            std::cout << "create_row_desc_message" << std::endl;
 
             // TODO DescにクエリがInsertまたはUpdateの時はnを返すようにしておく
             if (!query_queue.front().isSelect()) {
@@ -667,8 +666,8 @@ namespace transaction {
             // message_size_C += 挿入した文字列数
             message_size_C += command_tag.size() + 1;
 //            std::cout << "C message size:" << std::to_string(message_size_C) << std::endl;
-            std::cout << "num_rows" << num_rows << std::endl;
-            std::cout << "command_tag " << command_tag << std::endl;
+//            std::cout << "num_rows" << num_rows << std::endl;
+//            std::cout << "command_tag " << command_tag << std::endl;
 
             auto message_size_bytes = intToBigEndian(message_size_C);
 
@@ -809,28 +808,28 @@ namespace transaction {
         // response.set_raw_responseでresponse_bufferを代入する
         // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
 
-        static int callback(void *notUsed, int argc, char **argv, char **azColName) {
-            for (int i = 0; i < argc; i++) {
-                std::cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << std::endl;
-            }
-            std::cout << std::endl;
-            return 0;
-        }
+//        static int callback(void *notUsed, int argc, char **argv, char **azColName) {
+//            for (int i = 0; i < argc; i++) {
+//                std::cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << std::endl;
+//            }
+//            std::cout << std::endl;
+//            return 0;
+//        }
 
         Response operator()(const Request &req, sqlite3 *&in_mem_db) {
 //            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
 //                std::cout << req.query().query() << std::endl;
 
-            const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
-            char *zErrMsg = 0;
-            int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
-            if (rc != SQLITE_OK) {
-                std::cerr << "error code : " << rc << std::endl;
-                std::cerr << "SQL error: " << zErrMsg << std::endl;
-                sqlite3_free(zErrMsg);
-            } else {
-                std::cout << "Operation done successfully" << std::endl;
-            }
+//            const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
+//            char *zErrMsg = 0;
+//            int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
+//            if (rc != SQLITE_OK) {
+//                std::cerr << "error code : " << rc << std::endl;
+//                std::cerr << "SQL error: " << zErrMsg << std::endl;
+//                sqlite3_free(zErrMsg);
+//            } else {
+//                std::cout << "Operation done successfully" << std::endl;
+//            }
 
             std::vector<unsigned char> response_buffer;
 
@@ -857,7 +856,7 @@ namespace transaction {
 //
 //            return Response({CoResponse(Status::Ok)});
 
-            std::cout << "initialize response" << std::endl;
+//            std::cout << "initialize response" << std::endl;
             auto res = Response({CoResponse(Status::Ok)});
 
 //            std::cout << "response_buf_size:" << response_buffer.size() << std::endl;
@@ -868,7 +867,7 @@ namespace transaction {
 
             res.back().set_raw_response(response_buffer);
 
-            std::cout << "return response" << std::endl;
+//            std::cout << "return response" << std::endl;
 
             return res;
 

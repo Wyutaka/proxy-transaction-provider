@@ -130,7 +130,7 @@ namespace tcp_proxy {
         } else {
             std::cout << "handle_upstream_connect_err" << std::endl;
             // error の内容を表示
-            std::cout << "Error code: " << error.value() << std::endl;
+//            std::cout << "Error code: " << error.value() << std::endl;
             std::cout << "Error message: " << error.message() << std::endl;
             close_and_reset();
         }
@@ -331,8 +331,8 @@ namespace tcp_proxy {
 
         } else { // if (!error)
             // error の内容を表示
-            std::cout << "handle_download_read" << error.value() << std::endl;
-            std::cout << "Error code: " << error.value() << std::endl;
+//            std::cout << "handle_download_read" << error.value() << std::endl;
+//            std::cout << "Error code: " << error.value() << std::endl;
             std::cout << "Error message: " << error.message() << std::endl;
 //            close_and_reset();
         }
@@ -396,10 +396,10 @@ namespace tcp_proxy {
 
 //        index += message_size;
 
-        std::cout << "next message processSync: 0x"
-                  << std::hex << std::setw(2) << std::setfill('0')
-                  << static_cast<int>(downstream_data_[index] & 0xFF)
-                  << std::dec << " (" << downstream_data_[index] << ")" << std::endl;
+//        std::cout << "next message processSync: 0x"
+//                  << std::hex << std::setw(2) << std::setfill('0')
+//                  << static_cast<int>(downstream_data_[index] & 0xFF)
+//                  << std::dec << " (" << downstream_data_[index] << ")" << std::endl;
 
 //        if (downstream_data_[index] == 'P') {
 //            clientQueue.push('P');
@@ -419,7 +419,8 @@ namespace tcp_proxy {
 //            processExecuteMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
 //        }
 //        else {
-        std::cout << "write to backend" << std::endl;
+
+//        std::cout << "\n\nwrite to backend \n\n" << std::endl;
 
         auto response_buffer = res.back().get_raw_response();
 

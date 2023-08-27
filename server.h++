@@ -232,10 +232,10 @@ namespace tcp_proxy {
 
                 for (uint16_t i = 0; i < num_parameters; ++i) {
                     type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
-                    std::cout << "type_parameter : " << type_parameters[i] << std::endl;
+//                    std::cout << "type_parameter : " << type_parameters[i] << std::endl;
                 }
 
-                std::cout << "num parameters : " << num_parameters << std::endl;
+//                std::cout << "num parameters : " << num_parameters << std::endl;
 
                 index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
 
@@ -251,7 +251,7 @@ namespace tcp_proxy {
 //                    index += data_size;
                     } else if (type_parameters[i] == 1) {
                         uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
-                        std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
+//                        std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
                         datas.push_back(std::to_string(value));
                     }
                 }
@@ -284,10 +284,10 @@ namespace tcp_proxy {
 
                 uint16_t num_result_formats = extractBigEndian2Bytes(downstream_data_, index);
 
-                std::cout << "num_result_format : " << num_result_formats << std::endl;
+//                std::cout << "num_result_format : " << num_result_formats << std::endl;
                 for (int i = 0; i < num_result_formats; ++i) {
                     uint16_t format_code = extractBigEndian2Bytes(downstream_data_, index);
-                    std::cout << "format_code : " << format_code << std::endl;
+//                    std::cout << "format_code : " << format_code << std::endl;
                     column_format_code.push(format_code);
                 }
 
@@ -343,7 +343,7 @@ namespace tcp_proxy {
 
             uint16_t return_row_size = extractBigEndian4Bytes(downstream_data_, index);
 
-            std::cout << "next message execute: " << downstream_data_[index] << std::endl;
+//            std::cout << "next message execute: " << downstream_data_[index] << std::endl;
             if (downstream_data_[index] == 'S') {
                 clientQueue.push('S');
                 index++;
