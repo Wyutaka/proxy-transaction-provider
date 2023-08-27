@@ -429,6 +429,8 @@ namespace tcp_proxy {
                                 shared_from_this(),
                                 boost::asio::placeholders::error));
 
+        response_buffer;
+
         // フロントエンドからの読み込みを開始
         downstream_socket_.async_read_some(
                 boost::asio::buffer(downstream_data_, max_data_length),

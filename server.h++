@@ -217,72 +217,82 @@ namespace tcp_proxy {
                 query = prepared_statements_lists[statement_id];
             }
 
-            uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
-
-            std::vector<uint16_t> type_parameters(num_parameters);
-
-            for (uint16_t i = 0; i < num_parameters; ++i) {
-                type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
-                std::cout << "type_parameter : " << type_parameters[i] << std::endl;
+            // クエリをスキップする必要があるかの変数、Bindパラメータが100を超えるとバッファ落ちするため
+            bool should_unfold_bind_parameter = true;
+            //INSERT INTO OORDER_LINE が含まれるとき
+            if (query.find("INSERT INTO ORDER_LINE") != std::string::npos) {
+                query = " INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES(3064,1,1,1,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd ), (3064,1,1,2,72919,1,2,,efwojvfutgooqydegbckgqd ), (3064,1,1,1,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd ), (3064,1,1,2,72919,1,2,,efwojvfutgooqydegbckgqd ), (3064,1,1,3,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,4,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,5,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,6,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,7,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,8,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,9,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,10,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd), (3064,1,1,11,64103,1,7,1324.1,tejhzqnualvixeerulnkbvd)";
+                should_unfold_bind_parameter = false;
             }
 
-            std::cout << "num parameters : " << num_parameters << std::endl;
+            if (should_unfold_bind_parameter) {
+                uint16_t num_parameters = extractBigEndian2Bytes(downstream_data_, index);
 
-            index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
+                std::vector<uint16_t> type_parameters(num_parameters);
 
-            std::vector<std::string> datas;
-            for (uint16_t i = 0; i < num_parameters; ++i) {
-                // kimoi
-                uint32_t column_length = extractBigEndian4Bytes(downstream_data_, index);
-                if (type_parameters[i] == 0) {
-                    // Text format
-                    std::string value = extractString(downstream_data_, index);
-                    datas.emplace_back(value);
-                    // インデックスの更新
+                for (uint16_t i = 0; i < num_parameters; ++i) {
+                    type_parameters[i] = extractBigEndian2Bytes(downstream_data_, index);
+                    std::cout << "type_parameter : " << type_parameters[i] << std::endl;
+                }
+
+                std::cout << "num parameters : " << num_parameters << std::endl;
+
+                index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
+
+                std::vector<std::string> datas;
+                for (uint16_t i = 0; i < num_parameters; ++i) {
+                    // kimoi
+                    uint32_t column_length = extractBigEndian4Bytes(downstream_data_, index);
+                    if (type_parameters[i] == 0) {
+                        // Text format
+                        std::string value = extractString(downstream_data_, index);
+                        datas.emplace_back(value);
+                        // インデックスの更新
 //                    index += data_size;
-                } else if (type_parameters[i] == 1) {
-                    uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
-                    std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
-                    datas.push_back(std::to_string(value));
+                    } else if (type_parameters[i] == 1) {
+                        uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
+                        std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
+                        datas.push_back(std::to_string(value));
+                    }
                 }
-            }
 
-            for (size_t i = 0; i < datas.size(); ++i) {
-                std::string placeholder = "$" + std::to_string(i + 1);
-                size_t pos = query.find(placeholder);
-                if (pos != std::string::npos) {
-                    query.replace(pos, placeholder.length(), datas[i]);
+                for (size_t i = 0; i < datas.size(); ++i) {
+                    std::string placeholder = "$" + std::to_string(i + 1);
+                    size_t pos = query.find(placeholder);
+                    if (pos != std::string::npos) {
+                        query.replace(pos, placeholder.length(), datas[i]);
+                    }
                 }
-            }
-            // end region statementIDがある時のバインド処理
+                // end region statementIDがある時のバインド処理
 
 
-            std::cout << "Bind query: " << query << std::endl;
+                std::cout << "Bind query: " << query << std::endl;
 
-            // キューにクエリを追加
-            queryQueue.push(transaction::Query(query));
+                // キューにクエリを追加
+                queryQueue.push(transaction::Query(query));
 
-            // column_format_code
-            std::queue<int> column_format_code;
+                // column_format_code
+                std::queue<int> column_format_code;
 
-            // results_formatsの2バイトをintに変換し、int results_formatsに格納する
-            std::cout << "num_result_format_bytes[0]" << std::hex << std::setw(2) << std::setfill('0')
-                                                         << static_cast<int>(downstream_data_[index])
-                                                         << std::endl;
-            std::cout << "num_result_format_bytes[1]" << std::hex << std::setw(2) << std::setfill('0')
-                      << static_cast<int>(downstream_data_[index + 1])
-                      << std::endl;
+                // results_formatsの2バイトをintに変換し、int results_formatsに格納する
+//            std::cout << "num_result_format_bytes[0]" << std::hex << std::setw(2) << std::setfill('0')
+//                                                         << static_cast<int>(downstream_data_[index])
+//                                                         << std::endl;
+//            std::cout << "num_result_format_bytes[1]" << std::hex << std::setw(2) << std::setfill('0')
+//                      << static_cast<int>(downstream_data_[index + 1])
+//                      << std::endl;
 
-            uint16_t num_result_formats = extractBigEndian2Bytes(downstream_data_, index);
+                uint16_t num_result_formats = extractBigEndian2Bytes(downstream_data_, index);
 
-            std::cout << "num_result_format : " << num_result_formats << std::endl;
-            for (int i = 0; i < num_result_formats; ++i) {
-                uint16_t format_code = extractBigEndian2Bytes(downstream_data_, index);
-                std::cout << "format_code : " << format_code << std::endl;
-                column_format_code.push(format_code);
-            }
+                std::cout << "num_result_format : " << num_result_formats << std::endl;
+                for (int i = 0; i < num_result_formats; ++i) {
+                    uint16_t format_code = extractBigEndian2Bytes(downstream_data_, index);
+                    std::cout << "format_code : " << format_code << std::endl;
+                    column_format_code.push(format_code);
+                }
 
-            column_format_codes.push(column_format_code);
+                column_format_codes.push(column_format_code);
+            } // should_unfold_bind_parameter
 
             index = first_index + message_size; // 1 + message_size + 1
             std::cout << "next message bind: " << downstream_data_[index] << std::endl;

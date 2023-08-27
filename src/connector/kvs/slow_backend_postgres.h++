@@ -131,6 +131,8 @@ namespace transaction {
         // client_messageがSの時、create_ready_for_query_message(std::vector<unsigned char> &response_buffer)を実行
         void process_client_message(std::vector<unsigned char> &response_buffer,
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
+            // response_bufferを初期化？
+            response_buffer = { };
             auto client_queue = req.client_queue();
             auto query_queue = req.queryQueue();
             auto column_format_codes = req.column_format_codes();
@@ -241,9 +243,18 @@ namespace transaction {
             // backendに直に問い合わせるときはコメントアウトすること
             if (query_queue.front().query().find("getstockcounts") != std::string::npos) {
                 std::cout << "you get cached!!!" << std::endl;
-                response_buffer.insert(response_buffer.begin(), response::select_from_getstock_count,
+                response_buffer.insert(response_buffer.end(), response::select_from_getstock_count,
                                        response::select_from_getstock_count +
                                        sizeof(response::select_from_getstock_count));
+                return 1;
+            }
+
+            // SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA が来たときは特定のクエリを返す
+            else if (query_queue.front().query().find("SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA") != std::string::npos) {
+                std::cout << "you get cached!!!" << std::endl;
+                response_buffer.insert(response_buffer.end(), response::select_s_w_id_s_i_id_from_stock,
+                                       response::select_s_w_id_s_i_id_from_stock +
+                                       sizeof(response::select_s_w_id_s_i_id_from_stock));
                 return 1;
             }
 
@@ -419,6 +430,7 @@ namespace transaction {
                                 std::queue<std::queue<int>> &column_format_codes) {
             int message_size;
             size_t last_index_D;
+            // メッセージ冒頭、メッセージ長用のバッファ作成
             initializeBuffer(num_field, response_buffer, message_size, last_index_D);
 
             auto column_format_code = column_format_codes.front();
@@ -454,6 +466,7 @@ namespace transaction {
 
             int message_size;
             size_t last_index_D;
+            // メッセージ冒頭、メッセージ長用のバッファ作成
             initializeBuffer(num_field, response_buffer, message_size, last_index_D);
 
             auto column_format_code = column_format_codes.front();
@@ -468,7 +481,7 @@ namespace transaction {
                     one_format_code = column_format_code.front();
                 }
 
-                std::cout << "one_format_code postgres : " << one_format_code << std::endl;
+//                std::cout << "one_format_code postgres : " << one_format_code << std::endl;
 
                 processColumnData(column_data, column_length, column_type, response_buffer, message_size,
                                   one_format_code);
@@ -490,7 +503,7 @@ namespace transaction {
             message_size = 4 + 2;  // 4 for initial size and 2 for field count
             last_index_D = response_buffer.size();
 
-            std::cout << "num_field in initializeBuffer:" << num_field << std::endl;
+//            std::cout << "num_field in initializeBuffer:" << num_field << std::endl;
             uint16_t twoBytes = static_cast<uint16_t>(num_field);
 //            std::cout << "twoBytes in initializeBuffer:" << num_field << std::endl;
 //
@@ -518,8 +531,8 @@ namespace transaction {
 //            std::cout << "column_data" << column_data << std::endl;
 //            std::cout << "column_length" << column_length << std::endl;
 
-            std::cout << "column_type : " << column_type << std::endl;
-            std::cout << "format_code : " << format_code << std::endl;
+//            std::cout << "column_type : " << column_type << std::endl;
+//            std::cout << "format_code : " << format_code << std::endl;
 
             // int以外
             if (column_type == SQLITE_TEXT || format_code == 0) {
@@ -537,8 +550,8 @@ namespace transaction {
                 int value = std::stoi(std::string(column_data, column_data + column_length));
                 auto binary_representation = intToBigEndian(value);
 
-                std::cout << "value in processColumnData:" << value << std::endl;
-                std::cout << "binay_reprensentation" << std::endl;
+//                std::cout << "value in processColumnData:" << value << std::endl;
+//                std::cout << "binay_reprensentation" << std::endl;
                 for (unsigned char byte: binary_representation) {
                     std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
                 }
@@ -698,13 +711,13 @@ namespace transaction {
                                            int16_t format_code) {
 
 
-            std::cout << "field_name :" << field_name << std::endl;
-            std::cout << "table_oid :" << table_oid << std::endl;
-            std::cout << "column_attribute_number :" << column_attribute_number << std::endl;
-            std::cout << "field_data_type_oid :" << field_data_type_oid << std::endl;
-            std::cout << "data_type_size :" << data_type_size << std::endl;
-            std::cout << "type_modifier :" << type_modifier << std::endl;
-            std::cout << "format_code :" << format_code << std::endl;
+//            std::cout << "field_name :" << field_name << std::endl;
+//            std::cout << "table_oid :" << table_oid << std::endl;
+//            std::cout << "column_attribute_number :" << column_attribute_number << std::endl;
+//            std::cout << "field_data_type_oid :" << field_data_type_oid << std::endl;
+//            std::cout << "data_type_size :" << data_type_size << std::endl;
+//            std::cout << "type_modifier :" << type_modifier << std::endl;
+//            std::cout << "format_code :" << format_code << std::endl;
 
             response_buffer.insert(response_buffer.end(), field_name.begin(), field_name.end());
             response_buffer.push_back(0); // null terminator
