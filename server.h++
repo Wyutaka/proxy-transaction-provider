@@ -171,7 +171,7 @@ namespace tcp_proxy {
 //            return;
 //        }
             if (!query.empty()) {
-                std::cout << "parse query: " << query << std::endl;
+//                std::cout << "parse query: " << query << std::endl;
 //                for (unsigned char byte: query) {
 //                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
 //                }
@@ -181,7 +181,7 @@ namespace tcp_proxy {
                 prepared_statements_lists[statement_id] = query;
             }
             index = first_index + message_size;
-            std::cout << "next message parse: " << downstream_data_[index] << std::endl;
+//            std::cout << "next message parse: " << downstream_data_[index] << std::endl;
 
             if (downstream_data_[index] == 'B') {
                 clientQueue.push('B');
@@ -266,7 +266,7 @@ namespace tcp_proxy {
                 // end region statementIDがある時のバインド処理
 
 
-                std::cout << "Bind query: " << query << std::endl;
+//                std::cout << "Bind query: " << query << std::endl;
 
                 // キューにクエリを追加
                 queryQueue.push(transaction::Query(query));
@@ -295,7 +295,7 @@ namespace tcp_proxy {
             } // should_unfold_bind_parameter
 
             index = first_index + message_size; // 1 + message_size + 1
-            std::cout << "next message bind: " << downstream_data_[index] << std::endl;
+//            std::cout << "next message bind: " << downstream_data_[index] << std::endl;
 
             if (downstream_data_[index] == 'D') {
                 clientQueue.push('D');
@@ -320,7 +320,7 @@ namespace tcp_proxy {
 
             std::string ps_or_portal_name = extractString(downstream_data_, index);
 
-            std::cout << "next message desc: " << downstream_data_[index] << std::endl;
+//            std::cout << "next message desc: " << downstream_data_[index] << std::endl;
             if (downstream_data_[index] == 'E') {
                 clientQueue.push('E');
                 index++;

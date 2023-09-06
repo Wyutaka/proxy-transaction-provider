@@ -195,7 +195,7 @@ namespace transaction {
 
                 // response_bufferを何らかの方法で送信するか、他の処理を行う
             }
-            std::cout << "end process client message" << std::endl;
+//            std::cout << "end process client message" << std::endl;
         }
 
 
@@ -232,7 +232,7 @@ namespace transaction {
 
             // TODO DescにクエリがInsertまたはUpdateの時はnを返すようにしておく
             if (!query_queue.front().isSelect()) {
-                std::cout << "create no data for D " << std::endl;
+//                std::cout << "create no data for D " << std::endl;
                 create_no_data_message(response_buffer);
 
                 return 1;
@@ -241,7 +241,7 @@ namespace transaction {
             //関数がきた場合はカスタムクエリを返す
             // backendに直に問い合わせるときはコメントアウトすること
             if (query_queue.front().query().find("getstockcounts") != std::string::npos) {
-                std::cout << "you get cached!!!" << std::endl;
+//                std::cout << "you get cached!!!" << std::endl;
                 response_buffer.insert(response_buffer.end(), response::select_from_getstock_count,
                                        response::select_from_getstock_count +
                                        sizeof(response::select_from_getstock_count));
@@ -250,7 +250,7 @@ namespace transaction {
 
             // SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA が来たときは特定のクエリを返す
             else if (query_queue.front().query().find("SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA") != std::string::npos) {
-                std::cout << "you get cached!!!" << std::endl;
+//                std::cout << "you get cached!!!" << std::endl;
                 response_buffer.insert(response_buffer.end(), response::select_s_w_id_s_i_id_from_stock,
                                        response::select_s_w_id_s_i_id_from_stock +
                                        sizeof(response::select_s_w_id_s_i_id_from_stock));
@@ -268,18 +268,18 @@ namespace transaction {
             int message_size = 4;
             auto query = query_queue.front().query().data();
 
-            std::cout << "query" << query << std::endl;
+//            std::cout << "query" << query << std::endl;
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
             int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
             rc = sqlite3_step(stmt);
 
-            std::cout << "sqlite result : " << rc << std::endl;
+//            std::cout << "sqlite result : " << rc << std::endl;
 
             if (rc == SQLITE_ROW) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
-                std::cout << "from sqlite num field : " << num_field << std::endl;
+//                std::cout << "from sqlite num field : " << num_field << std::endl;
 
                 uint16_t twoBytes = static_cast<uint16_t>(num_field);
 
@@ -444,7 +444,7 @@ namespace transaction {
                     one_format_code = column_format_code.front();
                 }
 
-                std::cout << "one_format_code sqlite : " << one_format_code << std::endl;
+//                std::cout << "one_format_code sqlite : " << one_format_code << std::endl;
 
                 processColumnData(column_data, column_length, column_type, response_buffer, message_size,
                                   one_format_code);
@@ -551,10 +551,10 @@ namespace transaction {
 
 //                std::cout << "value in processColumnData:" << value << std::endl;
 //                std::cout << "binay_reprensentation" << std::endl;
-                for (unsigned char byte: binary_representation) {
-                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-                }
-                std::cout << std::endl;
+//                for (unsigned char byte: binary_representation) {
+//                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
+//                }
+//                std::cout << std::endl;
 
                 response_buffer.insert(response_buffer.end(), binary_representation.begin(),
                                        binary_representation.end());
@@ -574,7 +574,7 @@ namespace transaction {
             int num_rows = 0;
             auto query = query_queue.front().query().data();
 
-            std::cout << "column_format_code_size : " << column_format_codes.size() << std::endl;
+//            std::cout << "column_format_code_size : " << column_format_codes.size() << std::endl;
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
@@ -835,9 +835,9 @@ namespace transaction {
 
             auto client_queue = req.client_queue();
 
-            printQueue(client_queue);
+//            printQueue(client_queue);
 
-            std::cout << "process_client_message" << std::endl;
+//            std::cout << "process_client_message" << std::endl;
             process_client_message(response_buffer, in_mem_db, *_conn, req);
 
 //            if (req.query().isSelect()) {

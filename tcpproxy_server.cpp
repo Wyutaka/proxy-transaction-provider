@@ -168,6 +168,20 @@ bool insertDataFromResult(PGconn *_conn, sqlite3 *in_mem_db, PGresult *res, cons
         if (!executeSQLite(in_mem_db, insertQuery.c_str())) {
             return false;
         }
+
+//        // todo パーセンテージで確認
+
+//        if (strcmp(tableName, "CUSTOMER") == 0) {
+//            if (i == 270000) { break; }
+//        } else if (strcmp(tableName, "WAREHOUSE") == 0) {
+//            if (i == 9) { break;}
+//        } else if (strcmp(tableName, "DISTRICT") == 0) {
+//            if (i == 90) {break;}
+//        } else if (strcmp(tableName, "STOCK") == 0) {
+//            if (i == 900000) {break;}
+//        } else if (strcmp(tableName, "ITEM") == 0) {
+//            if (i == 90000) {break;}
+//        }
     }
     return true;
 }
@@ -233,15 +247,18 @@ void initializeSQLite(PGconn* conn, sqlite3*& in_mem_db) {
     ret = sqlite3_exec(in_mem_db, text_create_HISTORY,
                        NULL, NULL, NULL);
 
-//
+
 //        const char *tables[] = {
-//                "OORDER", "DISTRICT", "ITEM", "WAREHOUSE", "CUSTOMER",
-//                "ORDER_LINE", "NEW_ORDER", "STOCK", "HISTORY"
+//                "OORDER", "DISTRICT", "ITEM", "WAREHOUSE",
+//                "ORDER_LINE", "STOCK", "HISTORY"
 //        };
 
         const char *tables[] = {
-                "OORDER", "DISTRICT"
+                "CUSTOMER", "WAREHOUSE", "DISTRICT", "STOCK", "ITEM"
         };
+
+
+//        const char *tables[] = {};
 
         int numTables = sizeof(tables) / sizeof(tables[0]);
 

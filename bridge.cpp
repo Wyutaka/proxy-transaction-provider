@@ -73,7 +73,7 @@ namespace tcp_proxy {
 //            std::cout << "Operation done successfully" << std::endl;
 //        }
 
-        std::cout << "aaaa" << std::endl;
+//        std::cout << "aaaa" << std::endl;
         bridge::connectToPostgres(_conn, backend_postgres_conninfo);
 //        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
     }
@@ -232,15 +232,6 @@ namespace tcp_proxy {
 //            debug::hexdump(reinterpret_cast<const char *>(downstream_data_), 256); // 下流バッファバッファ16進表示 test
             // ヘッダ情報の読み込み
 
-            // 設定くえりはむし
-//            if (!should_skip_query(query)) {
-//                async_write(upstream_socket_,
-//                            boost::asio::buffer(data, bytes_transferred),
-//                            boost::bind(&bridge::handle_upstream_write,
-//                                        shared_from_this(),
-//                                        boost::asio::placeholders::error));
-//            }
-
             // クライアントのメッセージ形式を保存するキュー
             std::queue<unsigned char> clientQueue;
             // クエリを複数保存するキュー
@@ -252,7 +243,6 @@ namespace tcp_proxy {
             if (downstream_data_[0] == 0x51) {
 
                 clientQueue.push('Q');
-//                std::cout << "handle downstream_read" << std::endl;
                 size_t index = 1;
                 // Body部の計算 -> 2,3,4,5バイト目でクエリ全体のサイズ計算 -> クエリの種類と長さの情報を切り取る
                 size_t message_size_q = extractBigEndian4Bytes(downstream_data_, index);
@@ -262,30 +252,18 @@ namespace tcp_proxy {
                         transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
                 };
 
-//                std::cout << "query " << std::endl;
-
                 std::string query = extractString(downstream_data_, index);
 
-//                std::cout << "create req " << std::endl;
                 // リクエストの生成
                 const transaction::Request &req = transaction::Request(
                         transaction::Peer(upstream_host_, upstream_port_), transaction::Query(query),
                         clientQueue); // n-4 00まで含める｀h
 
-//                std::cout << "create res" << std::endl;
                 // レスポンス生成
                 const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
 
-//                std::cout << "get_res_end" << std::endl;
                 // フロントエンドにresponse_bufferを送信
                 std::vector<unsigned char> response_buffer = res.back().get_raw_response();
-
-//                std::cout << "get response_buffer" << std::endl;
-
-//                for (unsigned char byte : response_buffer) {
-//                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-//                }
-//                std::cout << std::endl;
 
                 async_write(downstream_socket_,
                             boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
@@ -331,22 +309,12 @@ namespace tcp_proxy {
 
         } else { // if (!error)
             // error の内容を表示
-//            std::cout << "handle_download_read" << error.value() << std::endl;
-//            std::cout << "Error code: " << error.value() << std::endl;
+            std::cout << "handle_download_read" << error.value() << std::endl;
+            std::cout << "Error code: " << error.value() << std::endl;
             std::cout << "Error message: " << error.message() << std::endl;
 //            close_and_reset();
         }
     }
-
-    // クエリが無視リストに含まれているか確認
-//    bool bridge::should_skip_query(const std::string &data) {
-//        if (data.empty() || data.find("SET") != std::string::npos || data.find("SHOW") != std::string::npos
-//                                                                     || data.find("BEGIN") != std::string::npos
-//                                                                        || data.find("ROLLBACK") != std::string::npos) {
-//            return true;
-//        }
-//        return false;
-//    }
 
     // クエリが無視リストに含まれているか確認
     bool bridge::should_skip_query(const std::string &data) {
@@ -375,8 +343,6 @@ namespace tcp_proxy {
                                std::queue<std::queue<int>> &column_format_codes) {
         uint32_t message_size = extractBigEndian4Bytes(downstream_data_, index);
 
-
-
         // lock層の生成(postgres用)
         transaction::lock::Lock<transaction::PostgresConnector> lock{
                 transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
@@ -392,45 +358,22 @@ namespace tcp_proxy {
         // query_queue ???
         const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
 
-        // write backend (返却用バッファに追加)
-
-//        index += message_size;
-
-//        std::cout << "next message processSync: 0x"
-//                  << std::hex << std::setw(2) << std::setfill('0')
-//                  << static_cast<int>(downstream_data_[index] & 0xFF)
-//                  << std::dec << " (" << downstream_data_[index] << ")" << std::endl;
-
-//        if (downstream_data_[index] == 'P') {
-//            clientQueue.push('P');
-//            index++;
-//            processParseMessage(index, bytes_transferred, clientQueue, queries, column_format_codes);
-//        } else if (downstream_data_[index] == 'B') {
-//            clientQueue.push('B');
-//            index++;
-//
-//            // statemtn_idがある
-//            // Bindを最初に受け取った場合はstatementIDが必ずあるはずなので、””をクエリにする
-//            processBindMessage(index, bytes_transferred, clientQueue, "", queries, column_format_codes);
-//        }
-//        else if (downstream_data_[index] == 'E') {
-//            clientQueue.push('E');
-//            index++;
-//            processExecuteMessage(index, bytes_transferred, clientQueue, query, queries, column_format_codes);
-//        }
-//        else {
-
-//        std::cout << "\n\nwrite to backend \n\n" << std::endl;
+        ////        // プロキシのオーバーヘッドを計測(処理をした後にプロキシの生成したバッファではなく、クライアントから受け取ったデータをそのまま流す)
+//        async_write(upstream_socket_,
+//                    boost::asio::buffer(downstream_data_, max_data_length),
+//                    boost::bind(&bridge::handle_upstream_write,
+//                                shared_from_this(),
+//                                boost::asio::placeholders::error));
 
         auto response_buffer = res.back().get_raw_response();
 
+        // プロキシを計測
         async_write(downstream_socket_,
                     boost::asio::buffer(response_buffer.data(), response_buffer.size()), // result_okの文字列長
                     boost::bind(&bridge::handle_downstream_write,
                                 shared_from_this(),
                                 boost::asio::placeholders::error));
 
-        response_buffer;
 
         // フロントエンドからの読み込みを開始
         downstream_socket_.async_read_some(
@@ -439,7 +382,6 @@ namespace tcp_proxy {
                             shared_from_this(),
                             boost::asio::placeholders::error,
                             boost::asio::placeholders::bytes_transferred));
-//        }
     }
 
     void bridge::dumpString(const std::string &str) {
