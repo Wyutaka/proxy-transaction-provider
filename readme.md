@@ -6,6 +6,7 @@
 
 #### how to build 
 - install conan https://docs.conan.io/en/latest/installation.html
+  - !!CAUTION!! You must install conan version 1.53.0 `pip install conan==1.53.0`
 - add pip executable to PATH `export PATH=$PATH:/home/your_user_name/.local/bin`
 - at project root `$mkdir build && cd build`
 - `$conan install .. && cmake .. && make`
