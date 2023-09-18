@@ -51,7 +51,7 @@ namespace transaction::lock {
             Response operator()(const Request &req, std::string_view wal_file_name, std::queue<std::string> &query_queue, sqlite3 *in_mem_db) {
                 using pipes::operator|;
                 
-                std::cout << req.query().query() << std::endl;
+//                std::cout << req.query().query() << std::endl;
             // const auto query = req.query() | tolower;
 
 //                if (req.query().isBegin()) {

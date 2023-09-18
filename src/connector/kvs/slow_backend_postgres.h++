@@ -24,6 +24,7 @@
 #include "./src/test/DumpHex.h++"
 #include <boost/thread.hpp>
 #include "../../transaction/result.h++"
+#include <chrono>
 
 static void
 exit_nicely(PGconn *conn) {
@@ -146,7 +147,7 @@ namespace transaction {
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
-//                std::cout << "now processing client message :" << client_message << std::endl;
+                std::cout << "now processing client message :" << client_message << std::endl;
 
                 switch (client_message) {
                     case 'P':
@@ -248,6 +249,13 @@ namespace transaction {
                 return 1;
             }
 
+            //sumがきた場合はカスタムクエリを返す
+            if (query_queue.front().query().find("SUM") != std::string::npos) {
+//                std::cout << "you get cached!!!" << std::endl;
+                create_no_data_message(response_buffer);
+                return 1;
+            }
+
             // SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA が来たときは特定のクエリを返す
             else if (query_queue.front().query().find("SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA") != std::string::npos) {
 //                std::cout << "you get cached!!!" << std::endl;
@@ -268,7 +276,7 @@ namespace transaction {
             int message_size = 4;
             auto query = query_queue.front().query().data();
 
-//            std::cout << "query" << query << std::endl;
+            std::cout << "query" << query << std::endl;
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
@@ -279,7 +287,7 @@ namespace transaction {
 
             if (rc == SQLITE_ROW) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
-//                std::cout << "from sqlite num field : " << num_field << std::endl;
+                std::cout << "from sqlite num field : " << num_field << std::endl;
 
                 uint16_t twoBytes = static_cast<uint16_t>(num_field);
 
@@ -835,10 +843,22 @@ namespace transaction {
 
             auto client_queue = req.client_queue();
 
-//            printQueue(client_queue);
+            printQueue(client_queue);
 
 //            std::cout << "process_client_message" << std::endl;
+
+            // 開始時間の取得
+            auto start = std::chrono::high_resolution_clock::now();
+
             process_client_message(response_buffer, in_mem_db, *_conn, req);
+
+            // 終了時間の取得
+            auto end = std::chrono::high_resolution_clock::now();
+
+            // 経過時間の計算
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+            std::cout << "response time : " << duration.count() << "us" << std::endl;
 
 //            if (req.query().isSelect()) {
 //

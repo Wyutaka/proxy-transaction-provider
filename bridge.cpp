@@ -20,6 +20,7 @@
 #include "./src/reqestresponse/Constants.h++"
 #include "src/connector/kvs/slow_postgres.h++"
 #include "src/ThreadPool/ThreadPool.h++"
+#include <chrono>
 
 #define CASS_SHARED_PTR(type, v)                                                                   \
     std::shared_ptr<std::remove_pointer_t<decltype(v)>>(v, [](decltype(v) t) {                     \
@@ -42,7 +43,7 @@ namespace tcp_proxy {
     bridge::bridge(boost::asio::io_service &ios,
                    unsigned short upstream_port,
                    std::string upstream_host,
-                   sqlite3*& in_mem_db)
+                   sqlite3 *&in_mem_db)
             : downstream_socket_(ios),
               upstream_socket_(ios),
               upstream_host_(upstream_host),
@@ -157,6 +158,13 @@ namespace tcp_proxy {
 
     void bridge::handle_downstream_write(const boost::system::error_code &error) {
         if (!error) {
+            // 終了時間の取得
+            end_time = std::chrono::high_resolution_clock::now();
+
+            // 経過時間の計算
+//            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+//            std::cout << "execution time: " << duration.count() << " us" << std::endl;
+
             upstream_socket_.async_read_some(
                     boost::asio::buffer(upstream_data_, max_data_length),
                     boost::bind(&bridge::handle_upstream_read,
@@ -239,6 +247,17 @@ namespace tcp_proxy {
             // 結果列書式コードを保存するキュー
             std::queue<std::queue<int>> column_format_codes;
 
+
+            // クライアントのメッセージの読み込みイベントを受け取ってから
+            start_time = std::chrono::high_resolution_clock::now();
+
+//            async_write(upstream_socket_,
+//                        boost::asio::buffer(downstream_data_, bytes_transferred),
+//                        boost::bind(&bridge::handle_upstream_write,
+//                                    shared_from_this(),
+//                                    boost::asio::placeholders::error));
+
+
             // 1バイト目が'Q'のとき
             if (downstream_data_[0] == 0x51) {
 
@@ -278,7 +297,6 @@ namespace tcp_proxy {
                                     shared_from_this(),
                                     boost::asio::placeholders::error,
                                     boost::asio::placeholders::bytes_transferred));
-
             }
                 // postgresのBindメッセージ(PSのバインド)
             else if (downstream_data_[0] == 0x42) {
@@ -286,14 +304,12 @@ namespace tcp_proxy {
                 clientQueue.push('B');
                 // statementidがあるはず
                 processBindMessage(index, bytes_transferred, clientQueue, "", queryQueue, column_format_codes);
-
             }
                 // postgresのParseメッセージ(PSの宣言)
             else if (downstream_data_[0] == 0x50) {
                 size_t index = 1;
                 clientQueue.push('P');
                 processParseMessage(index, bytes_transferred, clientQueue, queryQueue, column_format_codes);
-
             } else {
                 async_write(upstream_socket_,
                             boost::asio::buffer(downstream_data_, bytes_transferred),
@@ -354,9 +370,19 @@ namespace tcp_proxy {
                                                                clientQueue,
                                                                column_format_codes); // n-4 00まで含める｀h
 
+        // lock時間の取得
+        lock_time = std::chrono::high_resolution_clock::now();
+
         // レスポンス生成
         // query_queue ???
         const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
+
+        // lock時間の取得
+        lock_end_time = std::chrono::high_resolution_clock::now();
+
+        // 経過時間の計算
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(lock_end_time - lock_time);
+        std::cout << "lock time: " << duration.count() << " us" << std::endl;
 
         ////        // プロキシのオーバーヘッドを計測(処理をした後にプロキシの生成したバッファではなく、クライアントから受け取ったデータをそのまま流す)
 //        async_write(upstream_socket_,

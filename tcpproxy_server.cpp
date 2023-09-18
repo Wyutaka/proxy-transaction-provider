@@ -139,6 +139,7 @@ static constexpr char *text_create_HISTORY = "CREATE TABLE HISTORY ("
                                              "h_data TEXT NOT NULL"
                                              ")";
 
+static constexpr char *text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";
 
 
 // Execute SQL against SQLite
@@ -155,6 +156,7 @@ bool executeSQLite(sqlite3 *db, const char *sql) {
 // Insert data from a PostgreSQL query result into an SQLite table
 bool insertDataFromResult(PGconn *_conn, sqlite3 *in_mem_db, PGresult *res, const char* tableName) {
     int nFields = PQnfields(res);
+    std::cout << "size : " <<  PQntuples(res) << std::endl;
     for (int i = 0; i < PQntuples(res); i++) {
         std::string insertQuery = "INSERT OR REPLACE INTO " + std::string(tableName) + " VALUES(";
         for (int j = 0; j < nFields; j++) {
@@ -221,7 +223,7 @@ void connectToPostgres(PGconn *_conn, const char *backend_postgres_connInfo) {
 //}
 
 // SQLiteのインメモリデータベースの初期化
-void initializeSQLite(PGconn* conn, sqlite3*& in_mem_db) {
+void initializeSQLite(PGconn *conn, sqlite3 *&in_mem_db) {
     int ret = sqlite3_open(":memory:", &in_mem_db);
     if (ret != SQLITE_OK) {
         std::cout << "FILE OPEN Error";
@@ -246,6 +248,8 @@ void initializeSQLite(PGconn* conn, sqlite3*& in_mem_db) {
                        NULL, NULL, NULL);
     ret = sqlite3_exec(in_mem_db, text_create_HISTORY,
                        NULL, NULL, NULL);
+    ret = sqlite3_exec(in_mem_db, text_create_tbl_sbtest1,
+                       NULL, NULL, NULL);
 
 
 //        const char *tables[] = {
@@ -253,22 +257,26 @@ void initializeSQLite(PGconn* conn, sqlite3*& in_mem_db) {
 //                "ORDER_LINE", "STOCK", "HISTORY"
 //        };
 
-        const char *tables[] = {
-                "CUSTOMER", "WAREHOUSE", "DISTRICT", "STOCK", "ITEM"
-        };
+//    const char *tables[] = {
+//            "CUSTOMER", "WAREHOUSE", "DISTRICT", "STOCK", "ITEM"
+//    };
+
+    const char *tables[] = {
+        "sbtest1"
+    };
 
 
 //        const char *tables[] = {};
 
-        int numTables = sizeof(tables) / sizeof(tables[0]);
+    int numTables = sizeof(tables) / sizeof(tables[0]);
 
-        for (int i = 0; i < numTables; i++) {
-            if (!migrateTableData(conn, in_mem_db, tables[i])) {
-                std::cerr << "Migration failed for table " << tables[i] << std::endl;
+    for (int i = 0; i < numTables; i++) {
+        if (!migrateTableData(conn, in_mem_db, tables[i])) {
+            std::cerr << "Migration failed for table " << tables[i] << std::endl;
 //                sqlite3_close(in_mem_db);
-                PQfinish(conn);
-            }
+            PQfinish(conn);
         }
+    }
 
     // 再オープン // TODO DO NOT DO THIS !! 一度クローズするとメモリの中身が消去される
 //    sqlite3_close(in_mem_db);
@@ -294,15 +302,12 @@ void initializeSQLite(PGconn* conn, sqlite3*& in_mem_db) {
 }
 
 void run_proxy(unsigned short local_port,
-               unsigned short forward_port
-               , const std::string local_host,
+               unsigned short forward_port, const std::string local_host,
                const std::string forward_host,
-               sqlite3*& in_mem_db)
-{
+               sqlite3 *&in_mem_db) {
 
     boost::asio::io_service ios;
-    try
-    {
+    try {
         tcp_proxy::bridge::acceptor acceptor(ios,
                                              local_host, local_port,
                                              forward_host, forward_port, in_mem_db);
@@ -311,24 +316,22 @@ void run_proxy(unsigned short local_port,
 
         ios.run();
     }
-    catch(std::exception& e)
-    {
+    catch (std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
 }
 
-int main(int argc, char* argv[])
-{
-    if (argc != 5)
-    {
-        std::cerr << "usage: tcpproxy_server <local host ip> <local port> <forward host ip> <forward port>" << std::endl;
-      return 1;
-   }
+int main(int argc, char *argv[]) {
+    if (argc != 5) {
+        std::cerr << "usage: tcpproxy_server <local host ip> <local port> <forward host ip> <forward port>"
+                  << std::endl;
+        return 1;
+    }
 
 
     // initialize sqlite and postgres
     // postgresのコネクション
-    static constexpr char *backend_postgres_conninfo = "host=192.168.12.17 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+    static constexpr char *backend_postgres_conninfo = "host=192.168.12.16 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
     PGconn *_conn;
     sqlite3 *in_mem_db;
 
@@ -342,8 +345,6 @@ int main(int argc, char* argv[])
 
     initializeSQLite(_conn, in_mem_db);
 
-    std::cout << "test" << std::endl;
-
 //    const char* sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
 //    char* zErrMsg = 0;
 //    int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
@@ -355,16 +356,16 @@ int main(int argc, char* argv[])
 //        std::cout << "Operation done successfully" << std::endl;
 //    }
 
-   const int num_threads = 4;
-   auto local_port   = static_cast<unsigned short>(::atoi(argv[2]));
-   const auto forward_port = static_cast<unsigned short>(::atoi(argv[4]));
-   const std::string local_host      = argv[1];
-   const std::string forward_host    = argv[3];
+    const int num_threads = 4;
+    auto local_port = static_cast<unsigned short>(::atoi(argv[2]));
+    const auto forward_port = static_cast<unsigned short>(::atoi(argv[4]));
+    const std::string local_host = argv[1];
+    const std::string forward_host = argv[3];
 
 //    std::string forward_hosts[10] = {"192.168.12.23", "192.168.12.22", "192.168.12.21", "192.168.12.20", "192.168.12.19", "192.168.12.18", "192.168.12.17", "192.168.12.16", "192.168.12.15","192.168.12.14"};
 //    unsigned short local_ports[10] = {5432, 5433, 5434, 5435, 5436, 5437, 5438, 5439, 5440, 5441};
 
-    std::string forward_hosts[10] = {"192.168.12.17"};
+    std::string forward_hosts[10] = {"192.168.12.16"};
     unsigned short local_ports[10] = {5432};
 
     boost::thread_group threads;
@@ -373,9 +374,11 @@ int main(int argc, char* argv[])
 //            return run_proxy(local_ports[0] + i, forward_port, local_host, forward_hosts[i % 10]); });
 //        local_port++;
 //    }
-    threads.create_thread([local_ports, forward_port, local_host, forward_hosts, &in_mem_db] { return run_proxy(local_ports[0], forward_port, local_host, forward_hosts[0], in_mem_db); });
+    threads.create_thread([local_ports, forward_port, local_host, forward_hosts, &in_mem_db] {
+        return run_proxy(local_ports[0], forward_port, local_host, forward_hosts[0], in_mem_db);
+    });
 
     threads.join_all();
 
-   return 0;
+    return 0;
 }

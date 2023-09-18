@@ -191,6 +191,10 @@ namespace tcp_proxy {
                 clientQueue.push('D');
                 index++;
                 processDescribeMessage(index, bytes_transferred, clientQueue, query, queryQueue, column_format_codes);
+            } else if (downstream_data_[index] == 'S') {
+                clientQueue.push('S');
+                index++;
+                processSyncMessage(index, bytes_transferred, clientQueue, query, queryQueue, column_format_codes);
             } else {
                 index = 0;
             }
@@ -237,18 +241,19 @@ namespace tcp_proxy {
 
 //                std::cout << "num parameters : " << num_parameters << std::endl;
 
-                index += 2; // parameter value の先頭2バイトをスキップ(parameter_formatsと同義)
+                int16_t parameter_values = extractBigEndian2Bytes(downstream_data_, index);
 
                 std::vector<std::string> datas;
-                for (uint16_t i = 0; i < num_parameters; ++i) {
+                for (uint16_t i = 0; i < parameter_values; ++i) {
                     // kimoi
                     uint32_t column_length = extractBigEndian4Bytes(downstream_data_, index);
-                    if (type_parameters[i] == 0) {
+                    if (type_parameters.empty()) {
+                        std::string value = extractString(downstream_data_, index);
+                        datas.emplace_back(value);
+                    } else if (type_parameters[i] == 0) {
                         // Text format
                         std::string value = extractString(downstream_data_, index);
                         datas.emplace_back(value);
-                        // インデックスの更新
-//                    index += data_size;
                     } else if (type_parameters[i] == 1) {
                         uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
 //                        std::cout << "detect paramter as binary in bind . value is : " << value << std::endl;
@@ -393,8 +398,8 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_[max_data_length];
         boost::mutex mutex_;
-        static constexpr char *backend_host = "192.168.12.17";
-        static constexpr char *backend_postgres_conninfo = "host=192.168.12.17 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        static constexpr char *backend_host = "192.168.12.16";
+        static constexpr char *backend_postgres_conninfo = "host=192.168.12.16 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
@@ -410,6 +415,8 @@ namespace tcp_proxy {
         static constexpr char *text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
         static constexpr char *text_create_tbl_sbtest1 = "create table if not exists sbtest1 (id integer primary key, k integer, c text, pad text)";
         static constexpr char *text_download_sbtest1 = "select * from sbtest1";
+        static constexpr char *sysbench_commit_req = "select * from sbtest1";
+        std::chrono::high_resolution_clock::time_point start_time, end_time, lock_time, lock_end_time;
 
 
 
