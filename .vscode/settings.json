@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "*.h++": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "chrono": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "vector": "cpp"
     }
 }

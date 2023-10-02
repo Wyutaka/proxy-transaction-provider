@@ -241,18 +241,19 @@ namespace tcp_proxy {
 
 //                std::cout << "num parameters : " << num_parameters << std::endl;
 
-                int16_t parameter_values = extractBigEndian2Bytes(downstream_data_, index);
+                int16_t parameter_values;
+                parameter_values = extractBigEndian2Bytes(downstream_data_, index);
 
                 std::vector<std::string> datas;
                 for (uint16_t i = 0; i < parameter_values; ++i) {
                     // kimoi
                     uint32_t column_length = extractBigEndian4Bytes(downstream_data_, index);
                     if (type_parameters.empty()) {
-                        std::string value = extractString(downstream_data_, index);
+                        std::string value = extractString_for_no_allignment(downstream_data_, index);
                         datas.emplace_back(value);
                     } else if (type_parameters[i] == 0) {
                         // Text format
-                        std::string value = extractString(downstream_data_, index);
+                        std::string value = extractString_for_no_allignment(downstream_data_, index);
                         datas.emplace_back(value);
                     } else if (type_parameters[i] == 1) {
                         uint32_t value = extractBigEndian4Bytes(downstream_data_, index);
@@ -265,13 +266,28 @@ namespace tcp_proxy {
                     std::string placeholder = "$" + std::to_string(i + 1);
                     size_t pos = query.find(placeholder);
                     if (pos != std::string::npos) {
-                        query.replace(pos, placeholder.length(), datas[i]);
+//                        std::cout << "bind param value : " << datas[i].data() << std::endl;
+                        query.replace(pos, placeholder.length(), datas[i].data());
                     }
                 }
+
+//                // sysbenchだとぎゃく？？？
+//                for (size_t i = 0; i < datas.size(); ++i) {
+//                    std::cout << "data size" << datas.size() << std::endl;
+//                    std::string placeholder = "$" + std::to_string(datas.size() - i);
+//                    size_t pos = query.find(placeholder);
+//                    if (pos != std::string::npos) {
+//                        if (i == 2) {
+//                            query.replace(pos, placeholder.length(), datas[i-1].data() + 100);
+//                        }  else {
+//                            query.replace(pos, placeholder.length(), datas[i].data());
+//                        }
+//                    }
+//                }
                 // end region statementIDがある時のバインド処理
 
 
-//                std::cout << "Bind query: " << query << std::endl;
+                std::cout << "Bind query: " << query << std::endl;
 
                 // キューにクエリを追加
                 queryQueue.push(transaction::Query(query));
@@ -380,6 +396,16 @@ namespace tcp_proxy {
             }
             std::string result(reinterpret_cast<const char *>(&data[start]), end - start);
             start = end + 1; // Adjust to position after the 0x00 byte
+            return result;
+        };
+
+        std::string extractString_for_no_allignment(const unsigned char *data, size_t &start) {
+            size_t end = start;
+            while (data[end] != 0x00) {
+                ++end;
+            }
+            std::string result(reinterpret_cast<const char *>(&data[start]), end - start);
+            start = end; // Adjust to position after the 0x00 byte
             return result;
         };
 

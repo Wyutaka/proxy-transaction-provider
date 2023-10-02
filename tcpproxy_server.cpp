@@ -265,8 +265,7 @@ void initializeSQLite(PGconn *conn, sqlite3 *&in_mem_db) {
         "sbtest1"
     };
 
-
-//        const char *tables[] = {};
+//    const char *tables[] = {};
 
     int numTables = sizeof(tables) / sizeof(tables[0]);
 

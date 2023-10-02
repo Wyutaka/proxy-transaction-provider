@@ -73,7 +73,15 @@ namespace transaction::lock {
 //                    return Response({CoResponse(Status::Error)});
 //                }
 //            }
+            auto lock_time = std::chrono::high_resolution_clock::now();
             write_query_to_wal(wal_file_name.data(), req.query().query().data());
+
+            auto lock_end_time = std::chrono::high_resolution_clock::now();
+
+            // 経過時間の計算
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(lock_end_time - lock_time);
+            std::cout << "wal time: " << duration.count() << " us" << std::endl;
+
             if (!req.query().isSelect()) {
                 query_queue.push(req.query().query().data());
             }

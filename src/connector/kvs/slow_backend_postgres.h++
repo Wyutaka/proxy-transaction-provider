@@ -48,81 +48,6 @@ namespace transaction {
         }
 
     private:
-        void download_result(PGconn &conn, const Request &req,
-                             std::queue<response::sysbench_result_type> results) {
-            int nFields;
-            int i, j;
-            PGresult *res;
-            /* トランザクションブロックを開始する。 */
-            res = PQexec(&conn, "BEGIN");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                fprintf(stderr, "BEGIN command failed: %s", PQerrorMessage(&conn));
-                PQclear(res);
-//                exit_nicely(conn);
-            }
-
-//            PQclear(res);
-
-            /*
-             * データベースのシステムカタログpg_databaseから行を取り出す。
-             */
-            auto get_cursor_query = "DECLARE myportal CURSOR FOR ";
-//            std::cout << std::string(req.query().query().data()).c_str() << std::endl;
-            res = PQexec(&conn, (get_cursor_query + std::string(req.query().query().data())).c_str());
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                fprintf(stderr, "DECLARE CURSOR failed: %s", PQerrorMessage(&conn));
-                PQclear(res);
-//                exit_nicely(conn);
-            }
-//            PQclear(res);
-
-            res = PQexec(&conn, "FETCH ALL in myportal");
-            if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-                fprintf(stderr, "FETCH ALL failed: %s", PQerrorMessage(&conn));
-                PQclear(res);
-//                exit_nicely(conn);
-            }
-
-            nFields = PQnfields(res);
-
-//            std::cout << "nFIelds:" << nFields << std::endl;
-//            std::cout << "PQntuples:" << PQntuples(res) << std::endl;
-//            std::cout << "test1-1" << std::endl;
-            /* 行を結果に追加。 */
-            for (i = 0; i < PQntuples(res); i++) {
-                if (nFields == 4) { // resultが4つの時
-                    response::Sysbench result_record({"id", "k", "c", "pad"},
-                                                     nFields); // TODO change table by select query
-                    for (j = 0; j < nFields; j++) {
-                        result_record.addColumn(PQgetvalue(res, i, j));
-                    }
-                    results.emplace(result_record);
-                } else if (req.query().query()[7] == 'c' || req.query().query()[7] == 'D') { // DISTINCT or c
-                    response::Sysbench_one result_record({"c"}, nFields); // TODO change table by select query
-                    for (j = 0; j < nFields; j++) {
-                        result_record.addColumn(PQgetvalue(res, i, j));
-                    }
-                    results.emplace(result_record);
-                } else if (req.query().query()[7] == 's' || req.query().query()[7] == 'S') { // select sum
-                    response::Sysbench_one result_record({"sum"}, nFields); // TODO change table by select query
-                    for (j = 0; j < nFields; j++) {
-                        result_record.addColumn(PQgetvalue(res, i, j));
-                    }
-                    results.emplace(result_record);
-                }
-            }
-
-            PQclear(res);
-
-            /* ポータルを閉ざす。ここではエラーチェックは省略した… */
-            res = PQexec(&conn, "CLOSE myportal");
-            PQclear(res);
-
-            /* トランザクションを終了する */
-            res = PQexec(&conn, "END");
-            PQclear(res);
-        }
-
         // query = req.query().query().data()
         // client_queueの先頭をひとつづつ読み込む
         // client_messageがPの時,create_parse_complete_message(std::vector<unsigned char> &response_buffer)を実行
@@ -147,7 +72,7 @@ namespace transaction {
                 unsigned char client_message = client_queue.front(); // client_queueの先頭を読み取る
                 client_queue.pop(); // 読み取ったメッセージをキューから削除
 
-                std::cout << "now processing client message :" << client_message << std::endl;
+//                std::cout << "now processing client message :" << client_message << std::endl;
 
                 switch (client_message) {
                     case 'P':
@@ -276,7 +201,11 @@ namespace transaction {
             int message_size = 4;
             auto query = query_queue.front().query().data();
 
-            std::cout << "query" << query << std::endl;
+//            std::cout << "query" << query << std::endl;
+
+
+            // 開始時間の取得
+            auto start = std::chrono::high_resolution_clock::now();
 
             // バックエンドへの問い合わせ
             sqlite3_stmt *stmt;
@@ -287,7 +216,6 @@ namespace transaction {
 
             if (rc == SQLITE_ROW) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
-                std::cout << "from sqlite num field : " << num_field << std::endl;
 
                 uint16_t twoBytes = static_cast<uint16_t>(num_field);
 
@@ -395,6 +323,13 @@ namespace transaction {
                 }
 //                PQfinish(&conn);
             }
+
+            // 終了時間の取得
+            auto end = std::chrono::high_resolution_clock::now();
+
+            // 経過時間の計算
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+            std::cout << "get data from sqlite time : " << duration.count() << "us" << std::endl;
 
 //            std::cout << "num_row in row description :" << num_rows << std::endl;
             return num_rows;
@@ -535,21 +470,35 @@ namespace transaction {
                                int format_code) {
             message_size += 4;
 
-//            std::cout << "column_data" << column_data << std::endl;
-//            std::cout << "column_length" << column_length << std::endl;
-
+//           std::cout << "column_data" << column_data << std::endl;
+//           std::cout << "column_length" << column_length << std::endl;
+//
 //            std::cout << "column_type : " << column_type << std::endl;
 //            std::cout << "format_code : " << format_code << std::endl;
 
+//            // int以外
+//            if (column_type == SQLITE_TEXT || format_code == 0) {
+//                auto column_length_bytes = intToBigEndian(column_length);
+//                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
+//
+//                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
+//                message_size += column_length;
+//
+//            } else if (column_type == SQLITE_INTEGER || column_type == SQLITE_BLOB || column_type == 23) {
+//                // int
+//                auto column_length_bytes = intToBigEndian(4);
+//                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
+//
+//                int value = std::stoi(std::string(column_data, column_data + column_length));
+//                auto binary_representation = intToBigEndian(value);
+//
+//                response_buffer.insert(response_buffer.end(), binary_representation.begin(),
+//                                       binary_representation.end());
+//                message_size += 4;
+//            }
+
             // int以外
-            if (column_type == SQLITE_TEXT || format_code == 0) {
-                auto column_length_bytes = intToBigEndian(column_length);
-                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
-
-                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
-                message_size += column_length;
-
-            } else if (column_type == SQLITE_INTEGER || column_type == SQLITE_BLOB || column_type == 23) {
+            if (column_type == SQLITE_INTEGER || column_type == SQLITE_BLOB || column_type == 23) {
                 // int
                 auto column_length_bytes = intToBigEndian(4);
                 response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
@@ -557,16 +506,16 @@ namespace transaction {
                 int value = std::stoi(std::string(column_data, column_data + column_length));
                 auto binary_representation = intToBigEndian(value);
 
-//                std::cout << "value in processColumnData:" << value << std::endl;
-//                std::cout << "binay_reprensentation" << std::endl;
-//                for (unsigned char byte: binary_representation) {
-//                    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-//                }
-//                std::cout << std::endl;
-
                 response_buffer.insert(response_buffer.end(), binary_representation.begin(),
                                        binary_representation.end());
                 message_size += 4;
+            } else {
+                auto column_length_bytes = intToBigEndian(column_length);
+                response_buffer.insert(response_buffer.end(), column_length_bytes.begin(), column_length_bytes.end());
+
+                response_buffer.insert(response_buffer.end(), column_data, column_data + column_length);
+                message_size += column_length;
+
             }
         }
 
@@ -843,7 +792,7 @@ namespace transaction {
 
             auto client_queue = req.client_queue();
 
-            printQueue(client_queue);
+//            printQueue(client_queue);
 
 //            std::cout << "process_client_message" << std::endl;
 
