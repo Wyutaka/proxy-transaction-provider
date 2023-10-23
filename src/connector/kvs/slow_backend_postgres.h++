@@ -25,6 +25,7 @@
 #include <boost/thread.hpp>
 #include "../../transaction/result.h++"
 #include <chrono>
+#include <SQLiteConnectionPool.h++>
 
 static void
 exit_nicely(PGconn *conn) {
@@ -58,7 +59,7 @@ namespace transaction {
         void process_client_message(std::vector<unsigned char> &response_buffer,
                                     sqlite3 *in_mem_db, PGconn &conn, Request req) {
             // response_bufferを初期化？
-            response_buffer = { };
+            response_buffer = {};
             auto client_queue = req.client_queue();
             auto query_queue = req.queryQueue();
             auto column_format_codes = req.column_format_codes();
@@ -157,10 +158,19 @@ namespace transaction {
 //            std::cout << "create_row_desc_message" << std::endl;
 
             // TODO DescにクエリがInsertまたはUpdateの時はnを返すようにしておく
+            // 内部DBに対してクエリを実行する
             if (!query_queue.front().isSelect()) {
-//                std::cout << "create no data for D " << std::endl;
-                create_no_data_message(response_buffer);
+                // キュー内のクエリを実行
+//                while (!query_queue.empty()) {
+                auto query = query_queue.front().query().data();
 
+                int rc = sqlite3_exec(in_mem_db, query, 0, 0, 0);
+
+
+//                    query_queue.pop();
+//
+//                }
+                create_no_data_message(response_buffer);
                 return 1;
             }
 
@@ -181,8 +191,9 @@ namespace transaction {
                 return 1;
             }
 
-            // SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA が来たときは特定のクエリを返す
-            else if (query_queue.front().query().find("SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA") != std::string::npos) {
+                // SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA が来たときは特定のクエリを返す
+            else if (query_queue.front().query().find("SELECT S_W_ID, S_I_ID, S_QUANTITY, S_DATA") !=
+                     std::string::npos) {
 //                std::cout << "you get cached!!!" << std::endl;
                 response_buffer.insert(response_buffer.end(), response::select_s_w_id_s_i_id_from_stock,
                                        response::select_s_w_id_s_i_id_from_stock +
@@ -212,9 +223,11 @@ namespace transaction {
             int rc = sqlite3_prepare_v2(in_mem_db, query, -1, &stmt, 0);
             rc = sqlite3_step(stmt);
 
-//            std::cout << "sqlite result : " << rc << std::endl;
+            if (rc != SQLITE_ROW) {
+                std::cout << "sqlite result : " << rc << std::endl;
+            }
 
-            if (rc == SQLITE_ROW) { // Data exists in SQLite
+            if (rc == SQLITE_ROW || rc == SQLITE_DONE) { // Data exists in SQLite
                 int num_field = sqlite3_column_count(stmt);
 
                 uint16_t twoBytes = static_cast<uint16_t>(num_field);
@@ -329,7 +342,7 @@ namespace transaction {
 
             // 経過時間の計算
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-            std::cout << "get data from sqlite time : " << duration.count() << "us" << std::endl;
+//            std::cout << "get data from sqlite time : " << duration.count() << "us" << std::endl;
 
 //            std::cout << "num_row in row description :" << num_rows << std::endl;
             return num_rows;
@@ -554,7 +567,7 @@ namespace transaction {
             PGresult *pg_res = PQexec(&conn, query);
             if (PQresultStatus(pg_res) == PGRES_TUPLES_OK) {
                 int num_field = PQnfields(pg_res);
-                std::cout << "from postgres" << num_field << std::endl;
+//                std::cout << "from postgres" << num_field << std::endl;
                 // Dのメッセージを追加
                 num_rows = PQntuples(pg_res);
                 for (int row = 0; row < num_rows; ++row) {
@@ -564,6 +577,7 @@ namespace transaction {
 //                }
 //                PQfinish(&conn);
             }
+
 //            std::cout << "num_row in row data :" << num_rows << std::endl;
             return num_rows;
 //            sqlite3_finalize(stmt);
@@ -761,82 +775,18 @@ namespace transaction {
         }
 
     public:
-        // responseを生成する
-        // response.set_raw_responseでresponse_bufferを代入する
-        // Statusはいらないのでは？？ -> 適当な値を入れてみる、参照しないこと
-
-//        static int callback(void *notUsed, int argc, char **argv, char **azColName) {
-//            for (int i = 0; i < argc; i++) {
-//                std::cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << std::endl;
-//            }
-//            std::cout << std::endl;
-//            return 0;
-//        }
-
-        Response operator()(const Request &req, sqlite3 *&in_mem_db) {
-//            debug::hexdump(req.query().query().data(), req.query().query().size()); // for test
-//                std::cout << req.query().query() << std::endl;
-
-//            const char *sql = "SELECT D_NEXT_O_ID   FROM DISTRICT WHERE D_W_ID = 4    AND D_ID = 1";
-//            char *zErrMsg = 0;
-//            int rc = sqlite3_exec(in_mem_db, sql, callback, 0, &zErrMsg);
-//            if (rc != SQLITE_OK) {
-//                std::cerr << "error code : " << rc << std::endl;
-//                std::cerr << "SQL error: " << zErrMsg << std::endl;
-//                sqlite3_free(zErrMsg);
-//            } else {
-//                std::cout << "Operation done successfully" << std::endl;
-//            }
-
+        Response operator()(const Request &req) {
             std::vector<unsigned char> response_buffer;
 
             auto client_queue = req.client_queue();
 
-//            printQueue(client_queue);
+            auto sqlite_conn = SQLiteConnectionPool::getInstance().getConnection();
+            process_client_message(response_buffer, sqlite_conn, *_conn, req);
+            SQLiteConnectionPool::getInstance().releaseConnection(sqlite_conn);
 
-//            std::cout << "process_client_message" << std::endl;
-
-            // 開始時間の取得
-            auto start = std::chrono::high_resolution_clock::now();
-
-            process_client_message(response_buffer, in_mem_db, *_conn, req);
-
-            // 終了時間の取得
-            auto end = std::chrono::high_resolution_clock::now();
-
-            // 経過時間の計算
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-            std::cout << "response time : " << duration.count() << "us" << std::endl;
-
-//            if (req.query().isSelect()) {
-//
-//                std::queue<response::sysbench_result_type> results;
-//
-//                bool isCached = get_from_local(in_mem_db, req, results);
-//                if (!isCached) {
-//                    return Response({CoResponse(Status::Select_Pending)});
-//                }
-//
-//                auto res = Response({CoResponse(Status::Result)});
-//                res.begin()->set_results(results);
-//                return res;
-//            }
-//
-//            return Response({CoResponse(Status::Ok)});
-
-//            std::cout << "initialize response" << std::endl;
             auto res = Response({CoResponse(Status::Ok)});
 
-//            std::cout << "response_buf_size:" << response_buffer.size() << std::endl;
-
-//            for (unsigned char byte: response_buffer) {
-//                std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-//            }
-
             res.back().set_raw_response(response_buffer);
-
-//            std::cout << "return response" << std::endl;
 
             return res;
 

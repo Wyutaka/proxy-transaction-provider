@@ -42,8 +42,7 @@ namespace tcp_proxy {
 
     bridge::bridge(boost::asio::io_service &ios,
                    unsigned short upstream_port,
-                   std::string upstream_host,
-                   sqlite3 *&in_mem_db)
+                   std::string upstream_host)
             : downstream_socket_(ios),
               upstream_socket_(ios),
               upstream_host_(upstream_host),
@@ -51,11 +50,19 @@ namespace tcp_proxy {
               _connectFuture(NULL),
               _cluster(CASS_SHARED_PTR(cluster, cass_cluster_new())),
               _session(std::shared_ptr<CassSession>(cass_session_new(), transaction::detail::SessionDeleter())),
-              queue_sender(pool::ThreadPoolExecutor(1)),
-              _in_mem_db(in_mem_db) {
+              queue_sender(pool::ThreadPoolExecutor(1)) {
+
+        // 乱数生成器を初期化
+        std::srand(std::time(nullptr));
+        // 配列の要素数を計算
+        int arraySize = 3;
+
+        // ランダムに要素を選択
+        int randomIndex = std::rand() % arraySize;
+        const char *selectedElement = backend_postgres_conninfo[randomIndex].c_str();
 
         // postgresのコネクション
-        _conn = PQconnectdb(backend_postgres_conninfo);
+        _conn = PQconnectdb(selectedElement);
         /* バックエンドとの接続確立に成功したかを確認する */
         if (PQstatus(_conn) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
@@ -75,7 +82,7 @@ namespace tcp_proxy {
 //        }
 
 //        std::cout << "aaaa" << std::endl;
-        bridge::connectToPostgres(_conn, backend_postgres_conninfo);
+        bridge::connectToPostgres(_conn, selectedElement);
 //        bridge::fetchAndCacheData(_conn, in_mem_db, text_download_sbtest1);
     }
 
@@ -83,7 +90,7 @@ namespace tcp_proxy {
         _connectFuture.reset();
         _session.reset();
         _cluster.reset();
-        sqlite3_close(_in_mem_db);
+//        sqlite3_close(_in_mem_db);
         PQfinish(_conn);
     }
 
@@ -201,7 +208,16 @@ namespace tcp_proxy {
     }
 
     void bridge::send_queue_backend(std::queue<std::string> &queue) {
-        thread_local PGconn *_conn_for_send_query_backend = PQconnectdb(backend_postgres_conninfo);
+        // 乱数生成器を初期化
+        std::srand(std::time(nullptr));
+        // 配列の要素数を計算
+        int arraySize = 3;
+
+        // ランダムに要素を選択
+        int randomIndex = std::rand() % arraySize;
+        const char *selectedElement = backend_postgres_conninfo[randomIndex].c_str();
+
+        thread_local PGconn *_conn_for_send_query_backend = PQconnectdb(selectedElement);
         /* バックエンドとの接続確立に成功したかを確認する */
         if (PQstatus(_conn_for_send_query_backend) != CONNECTION_OK) {
             fprintf(stderr, "Connection to database failed: %s",
@@ -249,7 +265,7 @@ namespace tcp_proxy {
 
 
             // クライアントのメッセージの読み込みイベントを受け取ってから
-            start_time = std::chrono::high_resolution_clock::now();
+//            start_time = std::chrono::high_resolution_clock::now();
 
 //            async_write(upstream_socket_,
 //                        boost::asio::buffer(downstream_data_, bytes_transferred),
@@ -257,6 +273,12 @@ namespace tcp_proxy {
 //                                    shared_from_this(),
 //                                    boost::asio::placeholders::error));
 
+//            // ダミー処理
+//            int dum = 0;
+//            for (int i = 0; i < 10000000; ++i) {
+//                dum++;
+//            }
+//            std::cout << dum << std::endl;
 
             // 1バイト目が'Q'のとき
             if (downstream_data_[0] == 0x51) {
@@ -279,7 +301,7 @@ namespace tcp_proxy {
                         clientQueue); // n-4 00まで含める｀h
 
                 // レスポンス生成
-                const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
+                const auto &res = lock(req, write_ahead_log, query_queue);
 
                 // フロントエンドにresponse_bufferを送信
                 std::vector<unsigned char> response_buffer = res.back().get_raw_response();
@@ -375,14 +397,14 @@ namespace tcp_proxy {
 
         // レスポンス生成
         // query_queue ???
-        const auto &res = lock(req, write_ahead_log, query_queue, _in_mem_db);
+        const auto &res = lock(req, write_ahead_log, query_queue);
 
         // lock時間の取得
         lock_end_time = std::chrono::high_resolution_clock::now();
 
         // 経過時間の計算
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(lock_end_time - lock_time);
-        std::cout << "lock time: " << duration.count() << " us" << std::endl;
+//        std::cout << "lock time: " << duration.count() << " us" << std::endl;
 
         ////        // プロキシのオーバーヘッドを計測(処理をした後にプロキシの生成したバッファではなく、クライアントから受け取ったデータをそのまま流す)
 //        async_write(upstream_socket_,

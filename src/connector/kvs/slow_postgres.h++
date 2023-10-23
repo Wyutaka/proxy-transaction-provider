@@ -124,8 +124,8 @@ namespace transaction {
 //            debug::hexdump(reinterpret_cast<const char *>(req.query().query().data()), req.query().query().size()); // 下流バッファバッファ16進表示
 
             std::cout << req.query().query().data() << std::endl;
-            std::cout << "req.query.size::" << req.queries().size() << std::endl;
-            std::cout << "req.query.size::" << req.query().query().size() << std::endl;
+//            std::cout << "req.query.size::" << req.queries().size() << std::endl;
+//            std::cout << "req.query.size::" << req.query().query().size() << std::endl;
             CassStatement* statement = cass_statement_new(req.query().query().data(), 0); // statement, cass_statement_new_n(const char * query, size_t query_length, size_t parameter_count)
 
             auto result_future = cass_session_execute(_session.get(), statement);
@@ -167,7 +167,7 @@ namespace transaction {
                 if (columnCount == 0) {
                     return std::vector<CoResponse>{CoResponse(Status::Ok)};
                 }
-                std::cout << "column size" << columnCount << std::endl;
+//                std::cout << "column size" << columnCount << std::endl;
                 std::vector<std::string> columnNames;
                 for (std::size_t cn = 0; cn < columnCount; ++cn) {
                     std::size_t length = 0;                                   // 列名の長さ

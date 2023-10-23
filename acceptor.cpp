@@ -18,26 +18,31 @@
 namespace tcp_proxy {
     bridge::acceptor::acceptor(boost::asio::io_service& io_service,
     const std::string& local_host, unsigned short local_port,
-    const std::string& upstream_host, unsigned short upstream_port, sqlite3*& in_mem_db)
+    const std::string& upstream_host, unsigned short upstream_port)
     : io_service_(io_service),
     localhost_address(boost::asio::ip::address_v4::from_string(local_host)),
     acceptor_(io_service_,ip::tcp::endpoint(localhost_address,local_port)),
     upstream_port_(upstream_port),
-    upstream_host_(upstream_host),
-    in_mem_db_(in_mem_db)
-    {}
+    upstream_host_(upstream_host)
+    {
+//        acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
+//        acceptor_.bind(ip::tcp::endpoint(localhost_address,local_port));
+    }
 
     bridge::acceptor::~acceptor() {
 
     }
 
+    // void do_accept()
     bool bridge::acceptor::accept_connections()
     {
 
         try {
-            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_, in_mem_db_)); // bad_alloc?
+            // sesion = std::make_shared<TcpProxySession>(io_service_)
+            session_ = boost::shared_ptr<bridge>(new bridge(io_service_, upstream_port_, upstream_host_)); // bad_alloc?
+            //
             acceptor_.async_accept(session_->downstream_socket_,
-                                   boost::bind(&acceptor::handle_accept,
+                                   boost::bind(&acceptor::handle_accept, // session->start
                                                this,
                                                boost::asio::placeholders::error));
 

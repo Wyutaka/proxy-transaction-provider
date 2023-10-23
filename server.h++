@@ -26,7 +26,7 @@ namespace tcp_proxy {
         typedef ip::tcp::socket socket_type;
         typedef boost::shared_ptr<bridge> ptr_type;
     public:
-        explicit bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host, sqlite3*& in_mem_db);
+        explicit bridge(boost::asio::io_service &ios, unsigned short upstream_port, std::string upstream_host);
 
         ~bridge();
 
@@ -51,7 +51,7 @@ namespace tcp_proxy {
         // Write to remote server complete, Async read from client
         void handle_upstream_write(const boost::system::error_code &error);
 
-        static void send_queue_backend(std::queue<std::string> &queue);
+        void send_queue_backend(std::queue<std::string> &queue);
 
         socket_type upstream_socket_;
 
@@ -287,7 +287,7 @@ namespace tcp_proxy {
                 // end region statementIDがある時のバインド処理
 
 
-                std::cout << "Bind query: " << query << std::endl;
+//                std::cout << "Bind query: " << query << std::endl;
 
                 // キューにクエリを追加
                 queryQueue.push(transaction::Query(query));
@@ -424,8 +424,10 @@ namespace tcp_proxy {
         unsigned char downstream_data_[max_data_length];
         unsigned char upstream_data_[max_data_length];
         boost::mutex mutex_;
-        static constexpr char *backend_host = "192.168.12.16";
-        static constexpr char *backend_postgres_conninfo = "host=192.168.12.16 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
+        std::string backend_postgres_conninfo[3] = {"host=192.168.11.16 port=5433 dbname=yugabyte user=yugabyte password=yugabyte",
+                                                           "host=192.168.11.15 port=5433 dbname=yugabyte user=yugabyte password=yugabyte",
+                                                           "host=192.168.11.14 port=5433 dbname=yugabyte user=yugabyte password=yugabyte"
+                                                             };
         unsigned short upstream_port_;
         std::string upstream_host_;
         std::shared_ptr<CassFuture> _connectFuture;
@@ -435,7 +437,6 @@ namespace tcp_proxy {
         std::queue<std::string> query_queue;
         std::mutex queue_mtx;
         pool::ThreadPoolExecutor queue_sender;
-        sqlite3 *_in_mem_db;
         std::map<std::string, std::string> prepared_statements_lists;
         static constexpr char *write_ahead_log = "/home/y-watanabe/wal.csv";
         static constexpr char *text_create_tbl_bench = "create table if not exists bench (pk text primary key, field1 integer, field2 integer, field3 integer)";
@@ -454,9 +455,7 @@ namespace tcp_proxy {
                               const std::string &local_host,
                               unsigned short local_port,
                               const std::string &upstream_host,
-                              unsigned short upstream_port,
-                              sqlite3*& in_mem_db
-                              );
+                              unsigned short upstream_port);
 
             ~acceptor();
 
@@ -471,7 +470,6 @@ namespace tcp_proxy {
             ptr_type session_;
             unsigned short upstream_port_;
             std::string upstream_host_;
-            sqlite3 *in_mem_db_;
         };
     };
 }
