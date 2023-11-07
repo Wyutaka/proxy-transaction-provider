@@ -15,42 +15,43 @@
 #include <fstream>
 
 namespace transaction::lock {
-        template<class NextF> class Lock {
-        private:
-            using Ul = std::unique_lock<detail::shared_mutex>;
-            using Sl = detail::shared_lock<detail::shared_mutex>;
-            NextF _next; // transaction
-            detail::MyAtomicFlag _lock;
-            std::unique_ptr<detail::shared_mutex> _mutex;
-            Peer _currentLocker;
+    template<class NextF>
+    class Lock {
+    private:
+        using Ul = std::unique_lock<detail::shared_mutex>;
+        using Sl = detail::shared_lock<detail::shared_mutex>;
+        NextF _next; // transaction
+        detail::MyAtomicFlag _lock;
+        std::unique_ptr<detail::shared_mutex> _mutex;
+        Peer _currentLocker;
 
-            bool _getLock(const Peer &peer) {
-                // ip port
+        bool _getLock(const Peer &peer) {
+            // ip port
 
-                if (_lock.test_and_set() == true) {
-                    return false;
-                }
-                Ul ul(*_mutex);
-                _currentLocker = peer;
-                return true;
+            if (_lock.test_and_set() == true) {
+                return false;
             }
+            Ul ul(*_mutex);
+            _currentLocker = peer;
+            return true;
+        }
 
-            void write_query_to_wal(const std::basic_string<char>& wal_name, std::string_view query) {
-                std::ofstream writing_file;
-                writing_file.open(wal_name, std::ios::app);
-                writing_file << query << std::endl;
-                writing_file.close();
-            }
+        void write_query_to_wal(const std::basic_string<char> &wal_name, std::string_view query) {
+            std::ofstream writing_file;
+            writing_file.open(wal_name, std::ios::app);
+            writing_file << query << std::endl;
+            writing_file.close();
+        }
 
-        public:
-            explicit Lock(NextF next)
-                    : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
+    public:
+        explicit Lock(NextF next)
+                : _next(std::move(next)), _mutex(std::make_unique<detail::shared_mutex>()) {}
 
 //            Response operator()(const Request &req);
 
-            Response operator()(const Request &req, std::string_view wal_file_name, std::queue<std::string> &query_queue) {
-                using pipes::operator|;
-                
+        Response operator()(const Request &req, std::string_view wal_file_name, std::queue<std::string> &query_queue) {
+//            using pipes::operator|;
+
 //                std::cout << req.query().query() << std::endl;
             // const auto query = req.query() | tolower;
 
@@ -74,24 +75,11 @@ namespace transaction::lock {
 //                }
 //            }
 
-
-//            auto lock_time = std::chrono::high_resolution_clock::now();
-
-// todo write to wal けした
-            write_query_to_wal(wal_file_name.data(), req.query().query().data());
-//
-//            auto lock_end_time = std::chrono::high_resolution_clock::now();
-//
-//            // 経過時間の計算
-//            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(lock_end_time - lock_time);
-//            std::cout << "wal time: " << duration.count() << " us" << std::endl;
-
             if (!req.query().isSelect()) {
                 query_queue.push(req.query().query().data());
             }
             return _next(req);
-            }
-
-        };
-    }
+        }
+    };
+}
 #endif //MY_PROXY_LOCK_H

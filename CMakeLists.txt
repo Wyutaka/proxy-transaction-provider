@@ -38,7 +38,7 @@ add_executable(tcpproxy_server
         src/test/search.h++
         src/test/DumpHex.h++
         src/transaction/result.h++
-        src/ThreadPool/ThreadPool.h++ trace.h++ SQLiteConnectionPool.h++)
+        src/ThreadPool/ThreadPool.h++ trace.h++ SQLiteConnectionPool.h++ PostgresConnectionPool.h++)
 
 add_executable(client
         src/test/client.cpp

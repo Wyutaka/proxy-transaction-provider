@@ -195,6 +195,8 @@ public:
             }
         }
 
+//        while(connections_)
+
         db = connections_.back();
         connections_.pop_back();
 //        std::cout << "connection**" << connections_.size() << std::endl;
@@ -210,7 +212,7 @@ public:
 
 private:
     SQLiteConnectionPool() {
-        int pool_size = 16;
+        int pool_size = 1;
         // プール内のコネクションを初期化
         for (int i = 0; i < pool_size; ++i) {
             sqlite3 *db;
@@ -266,7 +268,6 @@ private:
             insertQuery += ");";
 
             executeQuery(insertQuery.c_str(), nullptr, nullptr);
-            std::cout << "insert data" << std::endl;
 
         }
         return true;
@@ -276,6 +277,5 @@ private:
     std::vector<sqlite3 *> connections_;
     std::mutex mutex_;
 };
-
 
 #endif //MY_PROXY_SQLITECONNECTIONPOOL_H

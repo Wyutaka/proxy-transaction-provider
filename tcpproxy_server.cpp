@@ -11,6 +11,7 @@
 #include <boost/thread.hpp>
 
 #include "SQLiteConnectionPool.h++"
+#include "PostgresConnectionPool.h++"
 #include "server.h++"
 
 
@@ -201,7 +202,6 @@ int main(int argc, char *argv[]) {
     // postgresのコネクション
     static constexpr char *backend_postgres_conninfo = "host=192.168.11.16 port=5433 dbname=yugabyte user=yugabyte password=yugabyte";
     PGconn *_conn;
-    sqlite3 *in_mem_db;
 
     _conn = PQconnectdb(backend_postgres_conninfo);
     /* バックエンドとの接続確立に成功したかを確認する */
@@ -212,10 +212,7 @@ int main(int argc, char *argv[]) {
     }
 
 //    initializeSQLite(_conn, in_mem_db);
-    std::cout << "hoge" << std::endl;
-
-    SQLiteConnectionPool::getInstance();
-
+    PGConnectionPool& pool = PGConnectionPool::getInstance();
 
     const auto forward_port = static_cast<unsigned short>(::atoi(argv[4]));
     const std::string local_host = argv[1];

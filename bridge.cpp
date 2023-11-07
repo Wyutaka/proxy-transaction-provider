@@ -273,12 +273,6 @@ namespace tcp_proxy {
 //                                    shared_from_this(),
 //                                    boost::asio::placeholders::error));
 
-//            // ダミー処理
-//            int dum = 0;
-//            for (int i = 0; i < 10000000; ++i) {
-//                dum++;
-//            }
-//            std::cout << dum << std::endl;
 
             // 1バイト目が'Q'のとき
             if (downstream_data_[0] == 0x51) {
@@ -290,7 +284,7 @@ namespace tcp_proxy {
 
                 // lock層の生成(postgres用)
                 transaction::lock::Lock<transaction::PostgresConnector> lock{
-                        transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
+                        transaction::PostgresConnector(transaction::PostgresConnector(_conn))
                 };
 
                 std::string query = extractString(downstream_data_, index);
@@ -383,7 +377,7 @@ namespace tcp_proxy {
 
         // lock層の生成(postgres用)
         transaction::lock::Lock<transaction::PostgresConnector> lock{
-                transaction::PostgresConnector(transaction::PostgresConnector(shared_from_this(), _conn))
+                transaction::PostgresConnector(transaction::PostgresConnector(_conn))
         };
 
         // リクエストの生成
@@ -392,26 +386,8 @@ namespace tcp_proxy {
                                                                clientQueue,
                                                                column_format_codes); // n-4 00まで含める｀h
 
-        // lock時間の取得
-        lock_time = std::chrono::high_resolution_clock::now();
-
         // レスポンス生成
-        // query_queue ???
         const auto &res = lock(req, write_ahead_log, query_queue);
-
-        // lock時間の取得
-        lock_end_time = std::chrono::high_resolution_clock::now();
-
-        // 経過時間の計算
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(lock_end_time - lock_time);
-//        std::cout << "lock time: " << duration.count() << " us" << std::endl;
-
-        ////        // プロキシのオーバーヘッドを計測(処理をした後にプロキシの生成したバッファではなく、クライアントから受け取ったデータをそのまま流す)
-//        async_write(upstream_socket_,
-//                    boost::asio::buffer(downstream_data_, max_data_length),
-//                    boost::bind(&bridge::handle_upstream_write,
-//                                shared_from_this(),
-//                                boost::asio::placeholders::error));
 
         auto response_buffer = res.back().get_raw_response();
 
