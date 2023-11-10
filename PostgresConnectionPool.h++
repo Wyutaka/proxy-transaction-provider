@@ -53,7 +53,7 @@ private:
     std::mutex mutex_;
 
     PGConnectionPool() {
-        int pool_size = 16;
+        int pool_size = 32;
 
         for (int i = 0; i < pool_size; ++i) {
             PGconn* conn = PQconnectdb(local_pg_conninfo);

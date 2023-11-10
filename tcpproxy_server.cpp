@@ -173,7 +173,7 @@ void run_proxy(unsigned short local_port,
         acceptor.accept_connections();
 
         // マルチスレッドでio_serviceを実行
-        const int thread_count = 8;
+        const int thread_count = 36;
         std::vector<std::thread> threads;
         for (int i = 0; i < thread_count; ++i) {
             threads.emplace_back([&ios]() {
